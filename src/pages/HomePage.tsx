@@ -32,7 +32,7 @@ export async function getPlaceSuggestions(query: string): Promise<PlaceSuggestio
   if (!query.trim()) return [];
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query + ', Guangdong, China')}&limit=5&addressdetails=1`
+      `https://nominatim.openstreetmap.org/search?format=json&country_codes=cn&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`
     );
     const data = await res.json();
     return data.map((item: Record<string, unknown>) => ({
