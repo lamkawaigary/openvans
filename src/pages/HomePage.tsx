@@ -563,6 +563,8 @@ export default function HomePage() {
     setPanelVh(Math.max(MIN_PANEL, Math.min(MAX_PANEL, dragRef.current.startVh + dvh)));
   };
   const onPointerUp = () => { dragRef.current = null; };
+  const togglePanel = () => setPanelVh(v => v < MAX_PANEL ? MAX_PANEL : MIN_PANEL);
+  const handleMapToggle = () => { if (panelFlow !== 'closed') togglePanel(); };
 
   return (
     <div style={hs.page}>
@@ -574,7 +576,7 @@ export default function HomePage() {
       </div>
 
       {/* Map */}
-      <div style={hs.mapWrap}>
+      <div style={hs.mapWrap} onClick={handleMapToggle}>
         <GoogleMapWrapper
           center={HK_CENTER}
           zoom={12}
@@ -604,17 +606,18 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Draggable handle */}
+        {/* Toggle handle — tap to collapse/expand */}
         <div
           style={{
-            height: 24,
+            height: 32,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'ns-resize',
+            cursor: 'pointer',
             flexShrink: 0,
+            userSelect: 'none',
           }}
-          onPointerDown={onPointerDown}
+          onClick={togglePanel}
         >
           <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
         </div>
@@ -639,17 +642,18 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Draggable handle */}
+        {/* Toggle handle — tap to collapse/expand */}
         <div
           style={{
-            height: 24,
+            height: 32,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            cursor: 'ns-resize',
+            cursor: 'pointer',
             flexShrink: 0,
+            userSelect: 'none',
           }}
-          onPointerDown={onPointerDown}
+          onClick={togglePanel}
         >
           <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
         </div>
