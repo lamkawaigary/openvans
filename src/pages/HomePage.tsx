@@ -335,9 +335,17 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
   return (
     <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
       {/* Route summary */}
-      <div style={{ background: colors.lightGrey, borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, fontSize: 12, color: colors.textMuted }}>
-        {data.pickup || '起始點'} → {data.dropoff || '目的地'}
-        {data.extraStops.length > 0 && <span> (+{data.extraStops.length}個中途站)</span>}
+      <div style={{ background: colors.lightGrey, borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <span style={{ color: colors.primaryBlue, fontSize: 12, lineHeight: '16px' }}>📍</span>
+          <span style={{ fontSize: 12, color: colors.darkGrey, lineHeight: '16px', wordBreak: 'break-word' }}>{data.pickup || '起始點'}</span>
+        </div>
+        <div style={{ borderLeft: `2px solid ${colors.lightGrey}`, marginLeft: 5, height: 8, width: 1 }} />
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <span style={{ color: colors.orange, fontSize: 12, lineHeight: '16px' }}>📍</span>
+          <span style={{ fontSize: 12, color: colors.darkGrey, lineHeight: '16px', wordBreak: 'break-word' }}>{data.dropoff || '目的地'}</span>
+        </div>
+        {data.extraStops.length > 0 && <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>(+{data.extraStops.length}個中途站)</div>}
       </div>
 
       {/* Vehicle type */}
