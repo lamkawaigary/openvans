@@ -117,14 +117,13 @@ interface GoogleMapWrapperProps {
   bookings: Booking[];
   clickMode: boolean;
   extraStopMarkers?: [number, number][];
-  panelVh?: number;
   onMapClick?: (lat: number, lng: number) => void;
   onMarkerClick?: (id: string) => void;
 }
 
 function GoogleMapWrapper({
   center, zoom, pickupCoord, dropoffCoord, routeCoords, bookings,
-  clickMode, extraStopMarkers = [], panelVh = 50, onMapClick, onMarkerClick
+  clickMode, extraStopMarkers = [], onMapClick, onMarkerClick
 }: GoogleMapWrapperProps) {
   const mapRef = useCallback((node: google.maps.Map | null) => {
     if (!node) return;
@@ -133,7 +132,7 @@ function GoogleMapWrapper({
       bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
       bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
       extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-      node.fitBounds(bounds, { top: 80, bottom: 300, left: 20, right: 20 });
+      node.fitBounds(bounds, { top: 80, bottom: 280, left: 20, right: 20 });
     } else if (pickupCoord) {
       node.panTo({ lat: pickupCoord[0], lng: pickupCoord[1] });
     } else if (dropoffCoord) {
@@ -605,7 +604,6 @@ export default function HomePage() {
           bookings={bookings}
           clickMode={panelFlow !== 'closed'}
           extraStopMarkers={data.extraStopsCoord}
-          panelVh={panelVh}
           onMapClick={handleMapClick}
           onMarkerClick={(id: string) => navigate(`/trips/${id}`)}
         />
