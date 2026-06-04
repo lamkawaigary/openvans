@@ -16,7 +16,7 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 type PanelFlow = 'step1' | 'step2' | 'closed';
-type ServiceTab = 'delivery' | 'move';
+type ServiceTab = 'move' | 'delivery';
 
 export interface PlaceSuggestion {
   placeId: string;
@@ -89,6 +89,7 @@ interface SheetData {
   loadWeight?: string;
   hasInsurance?: boolean;
   hasAssistant?: boolean;
+  passengerCount?: number;
   notes?: string;
 }
 
@@ -96,15 +97,16 @@ const DEFAULT_DATA: SheetData = {
   pickup: '', pickupCoord: null,
   dropoff: '', dropoffCoord: null,
   extraStops: [], extraStopsCoord: [],
-  service: 'delivery',
+  service: 'move',
   time: 'now',
-  vehicleType: 'light',
+  vehicleType: 'sedan',
   loadType: 'small',
+  passengerCount: 1,
 };
 
-const SERVICE_TABS: { key: ServiceTab; label: string; emoji: string }[] = [
-  { key: 'move', label: '叫車', emoji: '🚗' },
-  { key: 'delivery', label: '速遞', emoji: '📦' },
+const SERVICE_TABS: { key: ServiceTab; label: string; emoji: string; desc: string }[] = [
+  { key: 'move', label: '🚗 叫車', emoji: '🚗', desc: '載客出行' },
+  { key: 'delivery', label: '📦 速遞', emoji: '📦', desc: '物品寄送' },
 ];
 
 // ─── Map component ─────────────────────────────────────────────────────────
@@ -320,12 +322,6 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
     return d.toISOString().slice(0, 16);
   });
 
-  const VEHICLE_OPTIONS: { type: VehicleType; icon: string; label: string; load: string }[] = [
-    { type: 'motorcycle', icon: '🛵', label: '電單車', load: '~50kg' },
-    { type: 'light', icon: '🚚', label: '輕型貨車', load: '~1000kg' },
-    { type: 'truck_5_5t', icon: '🚛', label: '5.5噸貨車', load: '~2000kg' },
-  ];
-
   const SERVICE_SPEED = [
     { key: 'now', label: '即時', surcharge: '+30%' },
     { key: '4hour', label: '4小時', surcharge: '' },
@@ -356,46 +352,8 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
 
   return (
     <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
-      {/* Pickup (editable) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
-        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.primaryBlue}`, background: '#fff', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <AddressSearchInput
-            value={data.pickup}
-            onChange={v => setData(p => ({ ...p, pickup: v, pickupCoord: v ? p.pickupCoord : null }))}
-            onSelect={(addr, coord) => setData(p => ({ ...p, pickup: addr, pickupCoord: coord }))}
-            placeholder="起始點"
-          />
-        </div>
-      </div>
-
-      {/* Dropoff (editable) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
-        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.orange}`, background: '#fff', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <AddressSearchInput
-            value={data.dropoff}
-            onChange={v => setData(p => ({ ...p, dropoff: v, dropoffCoord: v ? p.dropoffCoord : null }))}
-            onSelect={(addr, coord) => setData(p => ({ ...p, dropoff: addr, dropoffCoord: coord }))}
-            placeholder="目的地"
-          />
-        </div>
-      </div>
-
-      {/* Vehicle type */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>車型</div>
-      <div style={{ display: 'flex', gap: sp.xs }}>
-        {VEHICLE_OPTIONS.map(v => (
-          <div key={v.type} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 2 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
-            <span style={{ fontSize: 24 }}>{v.icon}</span>
-            <div style={{ fontSize: 12, fontWeight: 700, color: data.vehicleType === v.type ? colors.primaryBlue : colors.darkGrey }}>{v.label}</div>
-            <div style={{ fontSize: 10, color: colors.textMuted }}>{v.load}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Time mode */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.sm }}>服務時間</div>
+      {/* Time mode — shown first (GoGoX style) */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>服務時間</div>
       <div style={{ display: 'flex', gap: sp.xs }}>
         {SERVICE_SPEED.map(opt => {
           const isActive = data.time === opt.key;
@@ -408,7 +366,7 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
         })}
       </div>
 
-      {/* Datetime picker */}
+      {/* Datetime picker for scheduled */}
       {showDateTimePicker && (
         <div style={{ background: '#E8F4FF', border: `1.5px solid ${colors.primaryBlue}44`, borderRadius: rd.lg, padding: sp.md }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: colors.primaryBlue, marginBottom: sp.xs }}>📅 選擇預約時間</div>
@@ -429,10 +387,55 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
         </div>
       )}
 
-      {/* Delivery options */}
+      {/* Vehicle type — split by service */}
+      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>車型</div>
+      {data.service === 'move' ? (
+        /* 叫車: 轎車 / 七人車 */
+        <div style={{ display: 'flex', gap: sp.xs }}>
+          {([
+            { type: 'sedan' as VehicleType, icon: '🚗', label: '轎車', sub: '1-4人' },
+            { type: 'van_7' as VehicleType, icon: '🚐', label: '七人車', sub: '1-6人' },
+          ]).map(v => (
+            <div key={v.type} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.md}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 4 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
+              <span style={{ fontSize: 28 }}>{v.icon}</span>
+              <div style={{ fontSize: 13, fontWeight: 700, color: data.vehicleType === v.type ? colors.primaryBlue : colors.darkGrey }}>{v.label}</div>
+              <div style={{ fontSize: 11, color: colors.textMuted }}>{v.sub}</div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        /* 速遞: 電單車 / 輕型 / 5.5噸 */
+        <div style={{ display: 'flex', gap: sp.xs }}>
+          {([
+            { type: 'motorcycle' as VehicleType, icon: '🛵', label: '電單車', sub: '~50kg' },
+            { type: 'light' as VehicleType, icon: '🚚', label: '輕型貨車', sub: '~1000kg' },
+            { type: 'truck_5_5t' as VehicleType, icon: '🚛', label: '5.5噸', sub: '~2000kg' },
+          ]).map(v => (
+            <div key={v.type} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 2 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
+              <span style={{ fontSize: 24 }}>{v.icon}</span>
+              <div style={{ fontSize: 12, fontWeight: 700, color: data.vehicleType === v.type ? colors.primaryBlue : colors.darkGrey }}>{v.label}</div>
+              <div style={{ fontSize: 10, color: colors.textMuted }}>{v.sub}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 叫車: 乘客人數 */}
+      {data.service === 'move' && (
+        <>
+          <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>乘客人數</div>
+          <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center' }}>
+            {([1,2,3,4,5,6] as const).map(n => (
+              <div key={n} style={{ flex: 1, background: data.passengerCount === n ? colors.primaryBlue : colors.lightGrey, borderRadius: rd.md, padding: '8px 2px', textAlign: 'center', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: data.passengerCount === n ? '#fff' : colors.darkGrey }} onClick={() => setData(p => ({ ...p, passengerCount: n }))}>{n}人</div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 速遞: 货物大小 */}
       {data.service === 'delivery' && (
         <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.sm }}>货物大小</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>货物大小</div>
           <div style={{ display: 'flex', gap: sp.xs }}>
             {([{ k: 'small', l: '📦小件' }, { k: 'medium', l: '🧳中件' }, { k: 'large', l: '🚢大件' }] as const).map(s => (
               <div key={s.k} style={{ flex: 1, background: data.loadType === s.k ? '#E8F4FF' : colors.white, border: `2px solid ${data.loadType === s.k ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center' as const, justifyContent: 'center' as const }} onClick={() => setData(p => ({ ...p, loadType: s.k }))}>
@@ -442,7 +445,6 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
           </div>
         </>
       )}
-
       {/* Notes */}
       <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.sm }}>備注</div>
       <textarea

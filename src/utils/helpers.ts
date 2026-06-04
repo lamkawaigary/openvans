@@ -85,6 +85,8 @@ export const VEHICLE_TYPE_LABELS: Record<VehicleType, string> = {
   motorcycle: '電單車',
   light: '輕型貨車',
   truck_5_5t: '5.5噸貨車',
+  sedan: '轎車',
+  van_7: '七人車',
 };
 
 // Backward compat alias
@@ -94,6 +96,8 @@ export const VEHICLE_TYPE_EMOJI: Record<VehicleType, string> = {
   motorcycle: '🛵',
   light: '🚚',
   truck_5_5t: '🚛',
+  sedan: '🚗',
+  van_7: '🚐',
 };
 
 // Backward compat alias
@@ -103,6 +107,8 @@ export const VEHICLE_TYPE_CAPACITY: Record<VehicleType, { kg: string; m3: string
   motorcycle: { kg: '~50kg', m3: '~0.1m³', desc: '文件/小型包裹' },
   light: { kg: '~1000kg', m3: '~5m³', desc: '小型搬家/速遞' },
   truck_5_5t: { kg: '~2000kg', m3: '~10m³', desc: '中型搬家/商業' },
+  sedan: { kg: '—', m3: '—', desc: '1-4人乘客' },
+  van_7: { kg: '—', m3: '—', desc: '1-6人乘客' },
 };
 
 // Backward compat alias
@@ -128,6 +134,8 @@ export function estimatePrice(
     motorcycle: 4,
     light: 6,
     truck_5_5t: 9,
+    sedan: 5,
+    van_7: 7,
   };
   const base = 40;
   return Math.round((ratePerKm[vehicleType] * distanceKm + base) * loadCount * 0.5 + base);

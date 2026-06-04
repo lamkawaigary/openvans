@@ -6,6 +6,8 @@ const BASE_FARES: Record<VehicleType, number> = {
   motorcycle: 30,   // 電單車
   light: 60,        // 輕型貨車
   truck_5_5t: 100,  // 5.5噸貨車
+  sedan: 50,  // 轎車
+  van_7: 70,  // 七人車
 };
 
 // Per-km rates (HK$)
@@ -13,6 +15,8 @@ const PER_KM_RATES: Record<VehicleType, number> = {
   motorcycle: 2.5,
   light: 4.0,
   truck_5_5t: 6.0,
+  sedan: 3.5,
+  van_7: 4.5,
 };
 
 // Minimum fare floors (HK$)
@@ -20,6 +24,8 @@ const MINIMUM_FARE: Record<VehicleType, number> = {
   motorcycle: 25,
   light: 50,
   truck_5_5t: 90,
+  sedan: 45,
+  van_7: 65,
 };
 
 // Speed multipliers
