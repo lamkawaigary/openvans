@@ -458,8 +458,7 @@ function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
       { type: 'motorcycle', icon: '🏍️', label: '電單車', sub: '~50kg' },
       { type: 'light', icon: '🚚', label: '輕型貨車', sub: '~1000kg' },
     ] : data.service === 'move' ? [
-      { type: 'light', icon: '🚐', label: '客貨車', sub: 'HiAce/TownAce' },
-      { type: 'light', icon: '🚚', label: '輕型貨車', sub: '拆網·大空間' },
+      { type: 'light', icon: '🚚', label: '輕型貨車', sub: 'HiAce/TownAce' },
       { type: 'truck_5_5t', icon: '🚛', label: '5.5噸', sub: '大型貨運' },
     ] : [
       { type: 'van_7', icon: '🚗', label: '商務七人車', sub: '機場·跨境接送' },
