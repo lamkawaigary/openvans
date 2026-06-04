@@ -16,7 +16,7 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 type PanelFlow = 'step1' | 'step2' | 'step3' | 'closed';
-type ServiceTab = 'move' | 'delivery';
+type ServiceTab = 'move' | 'delivery' | 'business';
 
 export interface PlaceSuggestion {
   placeId: string;
@@ -99,7 +99,7 @@ const DEFAULT_DATA: SheetData = {
   extraStops: [], extraStopsCoord: [],
   service: 'move',
   time: 'now',
-  vehicleType: 'sedan',
+  vehicleType: 'light',
   loadType: 'small',
   passengerCount: 1,
 };
@@ -389,24 +389,32 @@ function Step2Form({ data, setData, fare, onBackToStep1, onServiceSelect }: Step
         </div>
       )}
 
-      {/* Service type selector */}
+      {/* Service type selector — 3 tabs */}
       <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>選擇服務</div>
       <div style={{ display: 'flex', gap: sp.sm }}>
         <div
-          style={{ flex: 1, background: data.service === 'delivery' ? '#FFF3E0' : colors.white, border: `2px solid ${data.service === 'delivery' ? colors.orange : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
-          onClick={() => setData(p => ({ ...p, service: 'delivery' }))}
+          style={{ flex: 1, background: data.service === 'delivery' ? '#FFF3E0' : colors.white, border: `2px solid ${data.service === 'delivery' ? colors.orange : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+          onClick={() => setData(p => ({ ...p, service: 'delivery', vehicleType: 'motorcycle' }))}
         >
-          <span style={{ fontSize: 28 }}>📦</span>
-          <div style={{ fontSize: 14, fontWeight: 800, color: data.service === 'delivery' ? colors.orange : colors.darkGrey }}>速遞</div>
-          <div style={{ fontSize: 11, color: colors.textMuted }}>步兵·電單車·輕型貨車</div>
+          <span style={{ fontSize: 26 }}>📦</span>
+          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'delivery' ? colors.orange : colors.darkGrey }}>速遞</div>
+          <div style={{ fontSize: 10, color: colors.textMuted }}>電單車·輕型貨車</div>
         </div>
         <div
-          style={{ flex: 1, background: data.service === 'move' ? '#E8F4FF' : colors.white, border: `2px solid ${data.service === 'move' ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}
-          onClick={() => setData(p => ({ ...p, service: 'move' }))}
+          style={{ flex: 1, background: data.service === 'move' ? '#E8F4FF' : colors.white, border: `2px solid ${data.service === 'move' ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+          onClick={() => setData(p => ({ ...p, service: 'move', vehicleType: 'light' }))}
         >
-          <span style={{ fontSize: 28 }}>🚗</span>
-          <div style={{ fontSize: 14, fontWeight: 800, color: data.service === 'move' ? colors.primaryBlue : colors.darkGrey }}>叫車</div>
-          <div style={{ fontSize: 11, color: colors.textMuted }}>轎車·七人車</div>
+          <span style={{ fontSize: 26 }}>🚚</span>
+          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'move' ? colors.primaryBlue : colors.darkGrey }}>叫車</div>
+          <div style={{ fontSize: 10, color: colors.textMuted }}>客貨車·輕型·5.5噸</div>
+        </div>
+        <div
+          style={{ flex: 1, background: data.service === 'business' ? '#F3E8FF' : colors.white, border: `2px solid ${data.service === 'business' ? '#8B5CF6' : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+          onClick={() => setData(p => ({ ...p, service: 'business', vehicleType: 'van_7' }))}
+        >
+          <span style={{ fontSize: 26 }}>🚗</span>
+          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'business' ? '#8B5CF6' : colors.darkGrey }}>商務</div>
+          <div style={{ fontSize: 10, color: colors.textMuted }}>七人車·跨境接送</div>
         </div>
       </div>
 
@@ -444,15 +452,18 @@ interface Step3FormProps {
 function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
   const [notes, setNotes] = useState(data.notes ?? '');
 
-  // 速遞 vehicle options
-  const deliveryVehicles: { type: VehicleType; icon: string; label: string; sub: string }[] = data.service === 'delivery' ? [
-    { type: 'motorcycle', icon: '🛵', label: '步兵', sub: '~50kg' },
-    { type: 'light', icon: '🚚', label: '輕型貨車', sub: '~1000kg' },
-    { type: 'truck_5_5t', icon: '🚛', label: '5.5噸', sub: '~2000kg' },
-  ] : [
-    { type: 'sedan', icon: '🚗', label: '轎車', sub: '1-4人' },
-    { type: 'van_7', icon: '🚐', label: '客貨車', sub: '1-6人' },
-  ];
+  // Vehicle options by service
+  const vehicleOptions: { type: VehicleType; icon: string; label: string; sub: string }[] =
+    data.service === 'delivery' ? [
+      { type: 'motorcycle', icon: '🏍️', label: '電單車', sub: '~50kg' },
+      { type: 'light', icon: '🚚', label: '輕型貨車', sub: '~1000kg' },
+    ] : data.service === 'move' ? [
+      { type: 'light', icon: '🚐', label: '客貨車', sub: 'HiAce/TownAce' },
+      { type: 'light', icon: '🚚', label: '輕型貨車', sub: '拆網·大空間' },
+      { type: 'truck_5_5t', icon: '🚛', label: '5.5噸', sub: '大型貨運' },
+    ] : [
+      { type: 'van_7', icon: '🚗', label: '商務七人車', sub: '機場·跨境接送' },
+    ];
 
   return (
     <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
@@ -460,8 +471,8 @@ function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
       {/* 車型選擇 */}
       <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>選擇車型</div>
       <div style={{ display: 'flex', gap: sp.xs }}>
-        {deliveryVehicles.map(v => (
-          <div key={v.type} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.md}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 4 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
+        {vehicleOptions.map(v => (
+          <div key={v.label} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.md}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 4 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
             <span style={{ fontSize: 28 }}>{v.icon}</span>
             <div style={{ fontSize: 13, fontWeight: 700, color: data.vehicleType === v.type ? colors.primaryBlue : colors.darkGrey }}>{v.label}</div>
             <div style={{ fontSize: 11, color: colors.textMuted }}>{v.sub}</div>
@@ -530,7 +541,7 @@ function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
 
       {/* Back */}
       <button style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }} onClick={onBack}>
-        ← 返回選擇服務
+        ← 返回上一步
       </button>
 
       {/* Actions */}
