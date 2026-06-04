@@ -209,10 +209,9 @@ interface Step1FormProps {
   data: SheetData;
   setData: React.Dispatch<React.SetStateAction<SheetData>>;
   onPreview: () => void;
-  onBackToService: () => void;
 }
 
-function Step1Form({ data, setData, onPreview, onBackToService }: Step1FormProps) {
+function Step1Form({ data, setData, onPreview }: Step1FormProps) {
   const [pickupInput, setPickupInput] = useState(data.pickup || '');
   const [dropoffInput, setDropoffInput] = useState(data.dropoff || '');
   const [newStop, setNewStop] = useState('');
@@ -288,20 +287,14 @@ function Step1Form({ data, setData, onPreview, onBackToService }: Step1FormProps
         </div>
       )}
 
-      {/* Back to service selection */}
-      <button style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }} onClick={onBackToService}>
-        ← 選擇服務
-      </button>
-
-      {/* Back and Preview route buttons */}
+      {/* Preview route button */}
       <div style={{ display: 'flex', gap: sp.sm, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        <button style={{ flex: '0 0 auto', background: colors.white, color: colors.primaryBlue, border: `2px solid ${colors.primaryBlue}`, borderRadius: rd.lg, padding: `${sp.md}px ${sp.lg}px`, fontSize: 15, fontWeight: 700, cursor: 'pointer' }} onClick={onBackToService}>← 返回</button>
         <button
           style={{ flex: 1, background: canPreview ? colors.primaryBlue : colors.lightGrey, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: canPreview ? 'pointer' : 'not-allowed' }}
           disabled={!canPreview}
           onClick={onPreview}
         >
-          預覽路線 →
+          速遞 / 叫車 →
         </button>
       </div>
     </div>
@@ -776,7 +769,7 @@ export default function HomePage() {
         </div>
         <StepIndicator currentStep={panelFlow === 'step1' ? 1 : panelFlow === 'step2' ? 2 : 3} />
         <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
-          {panelFlow === 'step1' && <Step1Form data={data} setData={setData} onPreview={handlePreviewRoute} onBackToService={() => setPanelFlow('closed')} />}
+          {panelFlow === 'step1' && <Step1Form data={data} setData={setData} onPreview={handlePreviewRoute} />}
           {panelFlow === 'step2' && <Step2Form data={data} setData={setData} fare={fare} onBackToStep1={handleStep2Back} onServiceSelect={handleServiceSelect} />}
           {panelFlow === 'step3' && <Step3Form data={data} setData={setData} fare={fare} onBack={handleStep3Back} onPublish={handlePublish} />}
         </div>
