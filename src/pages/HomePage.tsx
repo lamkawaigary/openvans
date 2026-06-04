@@ -485,7 +485,7 @@ function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
         <>
           <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>乘客人數</div>
           <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center' }}>
-            {([1,2,3,4,5,6] as const).map(n => (
+            {([1,2,3,4] as const).map(n => (
               <div key={n} style={{ flex: 1, background: data.passengerCount === n ? colors.primaryBlue : colors.lightGrey, borderRadius: rd.md, padding: '8px 2px', textAlign: 'center', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: data.passengerCount === n ? '#fff' : colors.darkGrey }} onClick={() => setData(p => ({ ...p, passengerCount: n }))}>{n}人</div>
             ))}
           </div>
