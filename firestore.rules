@@ -1,0 +1,81 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ────────────────────────────────────────────────────
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ─── Users ─────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read: if true;
+      // Users can only write their own profile (unless admin)
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // ─── Vans ───────────────────────────────────────────────────────────────
+    match /vans/{vanId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+                    && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn()
+                    && (resource.data.ownerId == request.auth.uid || isAdmin())
+                    && request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isSignedIn()
+                    && resource.data.ownerId == request.auth.uid;
+    }
+
+    // ─── Bookings ──────────────────────────────────────────────────────────
+    match /bookings/{bookingId} {
+      // Allow any signed-in user to read bookings they are involved in
+      // Allow admin to read ALL bookings
+      allow read: if isSignedIn()
+                  && (resource.data.renterId == request.auth.uid
+                      || resource.data.ownerId == request.auth.uid
+                      || resource.data.ownerId == null
+                      || isAdmin());
+
+      // Allow renters to create new bookings
+      allow create: if isSignedIn()
+                    && request.resource.data.renterId == request.auth.uid
+                    && request.resource.data.status == 'pending';
+
+      // Allow admin to do anything
+      allow update, delete: if isAdmin();
+
+      // Allow renters to cancel their own pending bookings
+      allow update: if isSignedIn()
+                    && resource.data.renterId == request.auth.uid
+                    && request.resource.data.status == 'cancelled'
+                    && resource.data.status == 'pending';
+
+      // Allow owners to confirm pending bookings assigned to them
+      allow update: if isSignedIn()
+                    && resource.data.ownerId == request.auth.uid
+                    && request.resource.data.status == 'confirmed'
+                    && resource.data.status == 'pending';
+
+      // Allow owners to advance status: confirmed → in_progress → completed
+      allow update: if isSignedIn()
+                    && resource.data.ownerId == request.auth.uid
+                    && request.resource.data.status in ['in_progress', 'completed']
+                    && resource.data.status in ['confirmed', 'in_progress'];
+    }
+
+    // ─── Notifications ─────────────────────────────────────────────────────
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}
