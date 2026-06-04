@@ -82,6 +82,7 @@ interface SheetData {
   extraStops: string[];
   extraStopsCoord: [number, number][];
   service: ServiceTab;
+  isCrossBorder: boolean;
   time: string;
   scheduledTime?: Date;
   vehicleType: VehicleType;
@@ -98,6 +99,7 @@ const DEFAULT_DATA: SheetData = {
   dropoff: '', dropoffCoord: null,
   extraStops: [], extraStopsCoord: [],
   service: 'move',
+  isCrossBorder: false,
   time: 'now',
   vehicleType: 'light',
   loadType: 'small',
@@ -382,34 +384,44 @@ function Step2Form({ data, setData, fare, onBackToStep1, onServiceSelect }: Step
         </div>
       )}
 
-      {/* Service type selector — 3 tabs */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>選擇服務</div>
-      <div style={{ display: 'flex', gap: sp.sm }}>
+      {/* Service type selector — conditional on cross-border */}
+      {data.isCrossBorder ? (
         <div
-          style={{ flex: 1, background: data.service === 'delivery' ? '#FFF3E0' : colors.white, border: `2px solid ${data.service === 'delivery' ? colors.orange : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-          onClick={() => setData(p => ({ ...p, service: 'delivery', vehicleType: 'motorcycle' }))}
-        >
-          <span style={{ fontSize: 26 }}>📦</span>
-          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'delivery' ? colors.orange : colors.darkGrey }}>速遞</div>
-          <div style={{ fontSize: 10, color: colors.textMuted }}>電單車·輕型貨車</div>
-        </div>
-        <div
-          style={{ flex: 1, background: data.service === 'move' ? '#E8F4FF' : colors.white, border: `2px solid ${data.service === 'move' ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-          onClick={() => setData(p => ({ ...p, service: 'move', vehicleType: 'light' }))}
-        >
-          <span style={{ fontSize: 26 }}>🚚</span>
-          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'move' ? colors.primaryBlue : colors.darkGrey }}>叫車</div>
-          <div style={{ fontSize: 10, color: colors.textMuted }}>客貨車·輕型·5.5噸</div>
-        </div>
-        <div
-          style={{ flex: 1, background: data.service === 'business' ? '#F3E8FF' : colors.white, border: `2px solid ${data.service === 'business' ? '#8B5CF6' : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+          style={{ background: '#F3E8FF', border: '2px solid #8B5CF6', borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
           onClick={() => setData(p => ({ ...p, service: 'business', vehicleType: 'van_7' }))}
         >
-          <span style={{ fontSize: 26 }}>🚗</span>
-          <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'business' ? '#8B5CF6' : colors.darkGrey }}>商務</div>
-          <div style={{ fontSize: 10, color: colors.textMuted }}>七人車·跨境接送</div>
+          <span style={{ fontSize: 28 }}>🚗</span>
+          <div style={{ fontSize: 14, fontWeight: 800, color: '#8B5CF6' }}>商務</div>
+          <div style={{ fontSize: 11, color: colors.textMuted }}>跨境接送·七人車</div>
         </div>
-      </div>
+      ) : (
+        <div style={{ display: 'flex', gap: sp.sm }}>
+          <div
+            style={{ flex: 1, background: data.service === 'delivery' ? '#FFF3E0' : colors.white, border: `2px solid ${data.service === 'delivery' ? colors.orange : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+            onClick={() => setData(p => ({ ...p, service: 'delivery', vehicleType: 'motorcycle' }))}
+          >
+            <span style={{ fontSize: 26 }}>📦</span>
+            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'delivery' ? colors.orange : colors.darkGrey }}>速遞</div>
+            <div style={{ fontSize: 10, color: colors.textMuted }}>電單車·輕型貨車</div>
+          </div>
+          <div
+            style={{ flex: 1, background: data.service === 'move' ? '#E8F4FF' : colors.white, border: `2px solid ${data.service === 'move' ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+            onClick={() => setData(p => ({ ...p, service: 'move', vehicleType: 'light' }))}
+          >
+            <span style={{ fontSize: 26 }}>🚚</span>
+            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'move' ? colors.primaryBlue : colors.darkGrey }}>叫車</div>
+            <div style={{ fontSize: 10, color: colors.textMuted }}>輕型·5.5噸·9.5噸</div>
+          </div>
+          <div
+            style={{ flex: 1, background: data.service === 'business' ? '#F3E8FF' : colors.white, border: `2px solid ${data.service === 'business' ? '#8B5CF6' : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
+            onClick={() => setData(p => ({ ...p, service: 'business', vehicleType: 'van_7' }))}
+          >
+            <span style={{ fontSize: 26 }}>🚗</span>
+            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'business' ? '#8B5CF6' : colors.darkGrey }}>商務</div>
+            <div style={{ fontSize: 10, color: colors.textMuted }}>七人車·跨境接送</div>
+          </div>
+        </div>
+      )}
 
       {/* Route info */}
       {fare && (
@@ -583,8 +595,13 @@ export default function HomePage() {
     return () => sub();
   }, [user]);
 
-  const handlePreviewRoute = () => {
+  const isHK = (lat: number, lng: number) => lat >= 22.1 && lat <= 22.6 && lng >= 113.8 && lng <= 114.5;
+  const handlePreviewRoute = async () => {
     if (data.pickupCoord && data.dropoffCoord) {
+      const [plat, plng] = data.pickupCoord;
+      const [dlat, dlng] = data.dropoffCoord;
+      const crossBorder = isHK(plat, plng) !== isHK(dlat, dlng);
+      setData(p => ({ ...p, isCrossBorder: crossBorder }));
       setPanelVh(MIN_PANEL);
       setPanelFlow('step2');
     }
