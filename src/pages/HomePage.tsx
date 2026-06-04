@@ -460,6 +460,7 @@ function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
     ] : data.service === 'move' ? [
       { type: 'light', icon: '🚚', label: '輕型貨車', sub: 'HiAce/TownAce' },
       { type: 'truck_5_5t', icon: '🚛', label: '5.5噸', sub: '大型貨運' },
+      { type: 'truck_9_5t', icon: '🚜', label: '9.5噸', sub: '超大型貨運' },
     ] : [
       { type: 'van_7', icon: '🚗', label: '商務七人車', sub: '機場·跨境接送' },
     ];

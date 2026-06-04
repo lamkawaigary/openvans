@@ -7,10 +7,11 @@ export type UserRole = 'owner' | 'renter' | 'admin';
 
 // ─── Vehicle types (Hong Kong freight standard) ────────────────────────────────
 // 香港貨運標準車型
-export type VehicleType = 'motorcycle' | 'light' | 'truck_5_5t' | 'sedan' | 'van_7';
+export type VehicleType = 'motorcycle' | 'light' | 'truck_5_5t' | 'truck_9_5t' | 'sedan' | 'van_7';
 // motorcycle  = 電單車（50kg以下，快遞/小型緊急件）
 // light       = 輕型貨車（~1噸，HiAce/TownAce類）
 // truck_5_5t  = 5.5噸貨車（~2噸，Elf/Canter類）
+// truck_9_5t  = 9.5噸貨車（~4噸，Forward類）
 // sedan       = 轎車（1-4人）
 // van_7       = 七人車（1-6人）
 
