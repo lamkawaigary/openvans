@@ -564,6 +564,7 @@ export default function HomePage() {
   };
   const onPointerUp = () => { dragRef.current = null; };
   const togglePanel = () => setPanelVh(v => v < MAX_PANEL ? MAX_PANEL : MIN_PANEL);
+  const isCollapsed = panelVh <= MIN_PANEL;
   const handleMapToggle = () => { if (panelFlow !== 'closed') togglePanel(); };
 
   return (
@@ -592,6 +593,35 @@ export default function HomePage() {
         {publishSuccess && <div style={hs.successToast}>✅ 訂單已發佈！</div>}
       </div>
 
+      {/* Floating expand button when drawer is collapsed */}
+      {panelFlow !== 'closed' && isCollapsed && (
+        <button
+          onClick={togglePanel}
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: colors.primaryBlue,
+            color: colors.darkGrey,
+            border: 'none',
+            borderRadius: 20,
+            padding: '10px 20px',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+            zIndex: 270,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          📋 查看行程 ▲
+        </button>
+      )}
+
       {/* Bottom panel — step flow */}
       <div
         style={{
@@ -606,20 +636,23 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Toggle handle — tap to collapse/expand */}
+        {/* Toggle handle */}
         <div
           style={{
-            height: 32,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            height: 40,
             cursor: 'pointer',
             flexShrink: 0,
             userSelect: 'none',
+            gap: 4,
           }}
           onClick={togglePanel}
         >
-          <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
+          <div style={{ width: 36, height: 5, background: '#D1D5DB', borderRadius: 3 }} />
+          <div style={{ fontSize: 11, color: '#9CA3AF', letterSpacing: 1 }}>{isCollapsed ? '▲ 向上滑展開' : '▼ 向下收起'}</div>
         </div>
         <StepIndicator currentStep={panelFlow === 'step1' ? 1 : 2} />
         <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
@@ -642,20 +675,23 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Toggle handle — tap to collapse/expand */}
+        {/* Toggle handle */}
         <div
           style={{
-            height: 32,
             display: 'flex',
+            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
+            height: 40,
             cursor: 'pointer',
             flexShrink: 0,
             userSelect: 'none',
+            gap: 4,
           }}
           onClick={togglePanel}
         >
-          <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
+          <div style={{ width: 36, height: 5, background: '#D1D5DB', borderRadius: 3 }} />
+          <div style={{ fontSize: 11, color: '#9CA3AF', letterSpacing: 1 }}>{isCollapsed ? '▲ 向上滑展開' : '▼ 向下收起'}</div>
         </div>
         <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
           <div style={{ padding: `${sp.sm}px ${sp.md}px` }}>
