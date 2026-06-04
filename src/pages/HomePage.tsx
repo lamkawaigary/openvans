@@ -125,7 +125,10 @@ function GoogleMapWrapper({
   center, zoom, pickupCoord, dropoffCoord, routeCoords, bookings,
   clickMode, extraStopMarkers = [], onMapClick, onMarkerClick
 }: GoogleMapWrapperProps) {
-  const mapRef = useCallback((node: google.maps.Map | null) => {
+  const mapRef = useRef<google.maps.Map | null>(null);
+
+  const onMapLoad = useCallback((node: google.maps.Map | null) => {
+    mapRef.current = node;
     if (!node) return;
     if (pickupCoord && dropoffCoord) {
       const bounds = new google.maps.LatLngBounds();
@@ -140,13 +143,23 @@ function GoogleMapWrapper({
     }
   }, [pickupCoord, dropoffCoord, extraStopMarkers]);
 
+  // Re-fit when route coords update (after waypoints/directions load)
+  useEffect(() => {
+    if (!mapRef.current || !pickupCoord || !dropoffCoord || routeCoords.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
+    bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
+    extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
+    mapRef.current.fitBounds(bounds, { top: 80, bottom: 280, left: 20, right: 20 });
+  }, [routeCoords, pickupCoord, dropoffCoord, extraStopMarkers]);
+
   return (
     <GoogleMap
       id="main-map"
       mapContainerStyle={{ width: '100%', height: '100%' }}
       center={center}
       zoom={zoom}
-      onLoad={mapRef}
+      onLoad={onMapLoad}
       options={{ styles: MAP_STYLE, disableDefaultUI: true, zoomControl: true }}
       onClick={e => clickMode && onMapClick?.((e as google.maps.MapMouseEvent).latLng!.lat(), (e as google.maps.MapMouseEvent).latLng!.lng())}
     >
@@ -504,12 +517,15 @@ export default function HomePage() {
 
   const handlePreviewRoute = () => {
     if (data.pickupCoord && data.dropoffCoord) {
-      // Preserve time if switching to step2
+      setPanelVh(MIN_PANEL); // collapse drawer to show max map
       setPanelFlow('step2');
     }
   };
 
-  const handleStep2Back = () => setPanelFlow('step1');
+  const handleStep2Back = () => {
+    setPanelFlow('step1');
+    setPanelVh(MIN_PANEL); // keep drawer compact when going back
+  };
 
   const handlePublish = async () => {
     if (!user?.uid) return;
