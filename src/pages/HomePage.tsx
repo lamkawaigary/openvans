@@ -636,23 +636,33 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Toggle handle */}
+        {/* ── Drawer toggle strip (full-width, obvious) ── */}
         <div
+          onClick={togglePanel}
           style={{
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: 40,
+            height: 52,
             cursor: 'pointer',
             flexShrink: 0,
             userSelect: 'none',
-            gap: 4,
+            borderBottom: `1px solid ${colors.lightGrey}`,
+            background: '#FAFAFA',
           }}
-          onClick={togglePanel}
         >
-          <div style={{ width: 36, height: 5, background: '#D1D5DB', borderRadius: 3 }} />
-          <div style={{ fontSize: 11, color: '#9CA3AF', letterSpacing: 1 }}>{isCollapsed ? '▲ 向上滑展開' : '▼ 向下收起'}</div>
+          <div style={{
+            width: 52, height: 7, background: '#CBD5E1', borderRadius: 4,
+            marginRight: 14,
+            flexShrink: 0,
+          }} />
+          <span style={{
+            fontSize: 15, fontWeight: 800,
+            color: colors.darkGrey,
+            letterSpacing: 0.3,
+          }}>
+            {isCollapsed ? '▲ 展開行程' : '▼ 收起'}
+          </span>
         </div>
         <StepIndicator currentStep={panelFlow === 'step1' ? 1 : 2} />
         <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
@@ -675,23 +685,33 @@ export default function HomePage() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       >
-        {/* Toggle handle */}
+        {/* ── Drawer toggle strip (full-width, obvious) ── */}
         <div
+          onClick={togglePanel}
           style={{
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            height: 40,
+            height: 52,
             cursor: 'pointer',
             flexShrink: 0,
             userSelect: 'none',
-            gap: 4,
+            borderBottom: `1px solid ${colors.lightGrey}`,
+            background: '#FAFAFA',
           }}
-          onClick={togglePanel}
         >
-          <div style={{ width: 36, height: 5, background: '#D1D5DB', borderRadius: 3 }} />
-          <div style={{ fontSize: 11, color: '#9CA3AF', letterSpacing: 1 }}>{isCollapsed ? '▲ 向上滑展開' : '▼ 向下收起'}</div>
+          <div style={{
+            width: 52, height: 7, background: '#CBD5E1', borderRadius: 4,
+            marginRight: 14,
+            flexShrink: 0,
+          }} />
+          <span style={{
+            fontSize: 15, fontWeight: 800,
+            color: colors.darkGrey,
+            letterSpacing: 0.3,
+          }}>
+            {isCollapsed ? '▲ 展開行程' : '▼ 收起'}
+          </span>
         </div>
         <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
           <div style={{ padding: `${sp.sm}px ${sp.md}px` }}>
