@@ -135,7 +135,7 @@ function GoogleMapWrapper({
       bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
       bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
       extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-      node.fitBounds(bounds, { top: 80, bottom: 280, left: 20, right: 20 });
+      node.fitBounds(bounds, { top: 80, bottom: 360, left: 20, right: 20 });
     } else if (pickupCoord) {
       node.panTo({ lat: pickupCoord[0], lng: pickupCoord[1] });
     } else if (dropoffCoord) {
@@ -150,7 +150,7 @@ function GoogleMapWrapper({
     bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
     bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
     extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-    mapRef.current.fitBounds(bounds, { top: 80, bottom: 280, left: 20, right: 20 });
+    mapRef.current.fitBounds(bounds, { top: 80, bottom: 360, left: 20, right: 20 });
   }, [routeCoords, pickupCoord, dropoffCoord, extraStopMarkers]);
 
   return (
@@ -356,18 +356,30 @@ function Step2Form({ data, setData, fare, onBackToStep1, onBackToService, onPubl
 
   return (
     <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
-      {/* Route summary */}
-      <div style={{ background: colors.lightGrey, borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-          <span style={{ color: colors.primaryBlue, fontSize: 12, lineHeight: '16px' }}>📍</span>
-          <span style={{ fontSize: 12, color: colors.darkGrey, lineHeight: '16px', wordBreak: 'break-word' }}>{data.pickup || '起始點'}</span>
+      {/* Pickup (editable) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
+        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.primaryBlue}`, background: '#fff', flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <AddressSearchInput
+            value={data.pickup}
+            onChange={v => setData(p => ({ ...p, pickup: v, pickupCoord: v ? p.pickupCoord : null }))}
+            onSelect={(addr, coord) => setData(p => ({ ...p, pickup: addr, pickupCoord: coord }))}
+            placeholder="起始點"
+          />
         </div>
-        <div style={{ borderLeft: `2px solid ${colors.lightGrey}`, marginLeft: 5, height: 8, width: 1 }} />
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-          <span style={{ color: colors.orange, fontSize: 12, lineHeight: '16px' }}>📍</span>
-          <span style={{ fontSize: 12, color: colors.darkGrey, lineHeight: '16px', wordBreak: 'break-word' }}>{data.dropoff || '目的地'}</span>
+      </div>
+
+      {/* Dropoff (editable) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
+        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.orange}`, background: '#fff', flexShrink: 0 }} />
+        <div style={{ flex: 1 }}>
+          <AddressSearchInput
+            value={data.dropoff}
+            onChange={v => setData(p => ({ ...p, dropoff: v, dropoffCoord: v ? p.dropoffCoord : null }))}
+            onSelect={(addr, coord) => setData(p => ({ ...p, dropoff: addr, dropoffCoord: coord }))}
+            placeholder="目的地"
+          />
         </div>
-        {data.extraStops.length > 0 && <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>(+{data.extraStops.length}個中途站)</div>}
       </div>
 
       {/* Vehicle type */}
