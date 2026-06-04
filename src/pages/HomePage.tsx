@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { GoogleMap, Marker, Polyline } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
 import AddressSearchInput from '../components/AddressSearchInput';
@@ -535,7 +535,7 @@ export default function HomePage() {
     menuBtn: { background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
     logo: { fontSize: 18, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)' },
     mapWrap: { flex: 1, position: 'relative' as const },
-    panelWrap: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, background: colors.white, borderRadius: '28px 28px 0 0', boxShadow: '0 -4px 20px rgba(0,0,0,0.1)', maxHeight: '85dvh', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' as const, zIndex: 260 },
+    panelWrap: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, background: colors.white, borderRadius: '28px 28px 0 0', boxShadow: '0 -4px 20px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' as const, zIndex: 260 },
     panelContent: { overflowY: 'auto' as const, flex: 1, minHeight: 0, overscrollBehavior: 'contain' as const },
     serviceTabRow: { display: 'flex', background: colors.lightGrey, borderRadius: rd.lg, padding: 4, gap: 4 },
     serviceTab: { flex: 1, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 13, fontWeight: 600, color: colors.darkGrey, borderRadius: rd.md, cursor: 'pointer' },
@@ -544,6 +544,25 @@ export default function HomePage() {
     comingSoon: { fontSize: 9, background: colors.lightGrey, borderRadius: 3, padding: '1px 4px', marginLeft: 4 },
     successToast: { position: 'absolute' as const, top: 80, left: '50%', transform: 'translateX(-50%)', background: '#22C55E', color: '#fff', padding: `${sp.sm}px ${sp.lg}px`, borderRadius: '9999px', fontSize: 14, fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 200 },
   };
+
+  // ─── Drawer height control (draggable) ───────────────────────────────────
+  const MIN_PANEL = 50;  // 50dvh collapsed
+  const MAX_PANEL = 85;  // 85dvh expanded
+  const [panelVh, setPanelVh] = useState(MIN_PANEL);
+  const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
+
+  // touch/mouse drag to resize
+  const onPointerDown = (e: React.PointerEvent) => {
+    dragRef.current = { startY: e.clientY, startVh: panelVh };
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return;
+    const dy = dragRef.current.startY - e.clientY;
+    const dvh = (dy / window.innerHeight) * 100;
+    setPanelVh(Math.max(MIN_PANEL, Math.min(MAX_PANEL, dragRef.current.startVh + dvh)));
+  };
+  const onPointerUp = () => { dragRef.current = null; };
 
   return (
     <div style={hs.page}>
@@ -572,39 +591,89 @@ export default function HomePage() {
       </div>
 
       {/* Bottom panel — step flow */}
-      <div style={{ ...hs.panelWrap, display: panelFlow !== 'closed' ? 'flex' : 'none', flexDirection: 'column' as const, zIndex: 260 }}>
+      <div
+        style={{
+          ...hs.panelWrap,
+          display: panelFlow !== 'closed' ? 'flex' : 'none',
+          flexDirection: 'column',
+          height: `${panelVh}dvh`,
+          transition: dragRef.current ? 'none' : 'height 0.2s ease',
+          maxHeight: `${panelVh}dvh`,
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {/* Draggable handle */}
+        <div
+          style={{
+            height: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'ns-resize',
+            flexShrink: 0,
+          }}
+          onPointerDown={onPointerDown}
+        >
+          <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
+        </div>
         <StepIndicator currentStep={panelFlow === 'step1' ? 1 : 2} />
-        <div style={hs.panelContent}>
+        <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
           {panelFlow === 'step1' && <Step1Form data={data} setData={setData} onPreview={handlePreviewRoute} onBackToService={() => setPanelFlow('closed')} />}
           {panelFlow === 'step2' && <Step2Form data={data} setData={setData} fare={fare} onBackToStep1={handleStep2Back} onBackToService={() => setPanelFlow('closed')} onPublish={handlePublish} />}
         </div>
       </div>
 
       {/* Service tab panel (when closed) */}
-      <div style={{ ...hs.panelWrap, display: panelFlow === 'closed' ? 'flex' : 'none', flexDirection: 'column' as const, zIndex: 250 }}>
-        <div style={hs.panelContent}>
-        <div style={{ padding: `${sp.sm}px ${sp.md}px` }}>
-          <div style={hs.serviceTabRow}>
-            {SERVICE_TABS.map(tab => {
-              return (
+      <div
+        style={{
+          ...hs.panelWrap,
+          display: panelFlow === 'closed' ? 'flex' : 'none',
+          flexDirection: 'column',
+          height: `${panelVh}dvh`,
+          transition: 'height 0.2s ease',
+          maxHeight: `${panelVh}dvh`,
+        }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+      >
+        {/* Draggable handle */}
+        <div
+          style={{
+            height: 24,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'ns-resize',
+            flexShrink: 0,
+          }}
+          onPointerDown={onPointerDown}
+        >
+          <div style={{ width: 40, height: 4, background: colors.lightGrey, borderRadius: 2 }} />
+        </div>
+        <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
+          <div style={{ padding: `${sp.sm}px ${sp.md}px` }}>
+            <div style={hs.serviceTabRow}>
+              {SERVICE_TABS.map(tab => (
                 <div key={tab.key} style={{ ...(data.service === tab.key ? hs.serviceTabActive : hs.serviceTab), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} onClick={() => setData(p => ({ ...p, service: tab.key }))}>
                   <span style={{ fontSize: 16 }}>{tab.emoji}</span>
                   <span>{tab.label}</span>
                 </div>
-              );
-            })}
+              ))}
+            </div>
           </div>
-        </div>
-        <div style={{ padding: `0 ${sp.md}px ${sp.md}px` }}>
-          <div style={{ background: colors.lightGrey, borderRadius: rd.lg, padding: sp.lg, textAlign: 'center', color: colors.darkGrey }}>
-            <div style={{ fontSize: 32, marginBottom: sp.sm }}>📦</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: colors.darkGrey, marginBottom: sp.xs }}>隨時隨地托運</div>
-            <div style={{ fontSize: 13 }}>選擇服務然後輸入地址</div>
+          <div style={{ padding: `0 ${sp.md}px ${sp.md}px` }}>
+            <div style={{ background: colors.lightGrey, borderRadius: rd.lg, padding: sp.lg, textAlign: 'center', color: colors.darkGrey }}>
+              <div style={{ fontSize: 32, marginBottom: sp.sm }}>📦</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: colors.darkGrey, marginBottom: sp.xs }}>隨時隨地托運</div>
+              <div style={{ fontSize: 13 }}>選擇服務然後輸入地址</div>
+            </div>
+            <button style={{ width: '100%', background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: sp.md }} onClick={() => setPanelFlow('step1')}>
+              開始用車 🚐
+            </button>
           </div>
-          <button style={{ width: '100%', background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: sp.md, paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }} onClick={() => setPanelFlow('step1')}>
-            開始用車 🚐
-          </button>
-        </div>
         </div>
       </div>
     </div>
