@@ -207,12 +207,12 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
       position: absolute; inset: 0; z-index: 400; pointer-events: none;
     `;
 
-    // Crosshair SVG
+    // Crosshair SVG — position in upper half of screen (above drawer)
     const crosshair = document.createElement('div');
     crosshair.style.cssText = `
-      position: absolute; top: 50%; left: 50%;
+      position: absolute; top: 22%; left: 50%;
       transform: translate(-50%, -50%);
-      width: 60px; height: 60px;
+      width: 70px; height: 70px;
     `;
     crosshair.innerHTML = `
       <svg viewBox="0 0 60 60" style="width:100%;height:100%">
@@ -229,7 +229,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     // Hint text
     const hint = document.createElement('div');
     hint.style.cssText = `
-      position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+      position: absolute; top: 10%; left: 50%; transform: translateX(-50%);
       background: rgba(0,0,0,0.75); color: #fff; padding: 10px 18px;
       border-radius: 24px; font-size: 14px; font-weight: 600;
       white-space: nowrap; font-family: Inter, system-ui, sans-serif;
@@ -240,7 +240,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     // Button container (pointer-events: auto)
     const btnContainer = document.createElement('div');
     btnContainer.style.cssText = `
-      position: absolute; bottom: 18%; left: 50%; transform: translateX(-50%);
+      position: absolute; top: 38%; left: 50%; transform: translateX(-50%);
       display: flex; gap: 14px; pointer-events: auto;
     `;
 
@@ -269,16 +269,19 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
       const lat = center.lat();
       const lng = center.lng();
       const addr = await reverseGeocode(lat, lng);
+      // Update state and center map on the confirmed location
       if (adjustingField === 'pickup') {
         setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
-        panToCoord([lat, lng]);
+        mapRef.current.panTo({ lat, lng });
+        mapRef.current.setZoom(14);
       } else if (adjustingField === 'dropoff') {
         const pc = data.pickupCoord;
         if (pc) {
           const crossBorder = isHK(pc[0], pc[1]) !== isHK(lat, lng);
           setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
         }
-        panToCoord([lat, lng]);
+        mapRef.current.panTo({ lat, lng });
+        mapRef.current.setZoom(14);
       } else if (adjustingField?.startsWith('stop:')) {
         const idx = parseInt(adjustingField.split(':')[1]);
         const newStops = [...data.extraStops];
@@ -286,7 +289,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
         newStops[idx] = addr;
         newCoords[idx] = [lat, lng];
         setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
-        panToCoord([lat, lng]);
+        mapRef.current.panTo({ lat, lng });
+        mapRef.current.setZoom(14);
       }
       setAdjustingField(null);
     };
@@ -628,7 +632,23 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )}
             {data.pickupCoord && (
               <button
-                onClick={() => { setAdjustingField('pickup'); const c = data.pickupCoord; if (mapRef.current && c) mapRef.current.panTo({ lat: c[0], lng: c[1] }); }}
+                onClick={() => {
+                  setAdjustingField('pickup');
+                  const c = data.pickupCoord;
+                  if (mapRef.current && c) {
+                    // Offset map center up so crosshair (at 22% from top) aligns with this point
+                    const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: c[0], lng: c[1] });
+                    if (point) {
+                      const screenH = window.innerHeight;
+                      const offsetPx = screenH * 0.22; // Move center to 22% from top
+                      const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
+                        new google.maps.Point(point.x, point.y - offsetPx)
+                      );
+                      if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
+                      else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                    } else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                  }
+                }}
                 title="微調位置"
                 style={{ background: adjustingField === 'pickup' ? colors.primaryBlue : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === 'pickup' ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
               >📍</button>
@@ -701,7 +721,23 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
               </div>
               <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               <button
-                onClick={() => { const coord = data.extraStopsCoord[i]; if (coord && coord[0] !== 0) { setAdjustingField(`stop:${i}`); mapRef.current?.panTo({ lat: coord[0], lng: coord[1] }); } }}
+                onClick={() => {
+                  const coord = data.extraStopsCoord[i];
+                  if (coord && coord[0] !== 0) {
+                    setAdjustingField(`stop:${i}`);
+                    if (mapRef.current) {
+                      const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: coord[0], lng: coord[1] });
+                      if (point) {
+                        const offsetPx = window.innerHeight * 0.22;
+                        const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
+                          new google.maps.Point(point.x, point.y - offsetPx)
+                        );
+                        if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
+                        else { mapRef.current.panTo({ lat: coord[0], lng: coord[1] }); mapRef.current.setZoom(14); }
+                      } else { mapRef.current.panTo({ lat: coord[0], lng: coord[1] }); mapRef.current.setZoom(14); }
+                    }
+                  }
+                }}
                 title="微調位置"
                 style={{ background: adjustingField === `stop:${i}` ? '#FFD700' : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === `stop:${i}` ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >📍</button>
@@ -722,7 +758,21 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )}
             {data.dropoffCoord && (
               <button
-                onClick={() => { setAdjustingField('dropoff'); const c = data.dropoffCoord; if (mapRef.current && c) mapRef.current.panTo({ lat: c[0], lng: c[1] }); }}
+                onClick={() => {
+                  setAdjustingField('dropoff');
+                  const c = data.dropoffCoord;
+                  if (mapRef.current && c) {
+                    const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: c[0], lng: c[1] });
+                    if (point) {
+                      const offsetPx = window.innerHeight * 0.22;
+                      const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
+                        new google.maps.Point(point.x, point.y - offsetPx)
+                      );
+                      if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
+                      else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                    } else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                  }
+                }}
                 title="微調位置"
                 style={{ background: adjustingField === 'dropoff' ? colors.orange : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === 'dropoff' ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
               >📍</button>
