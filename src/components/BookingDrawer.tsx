@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GoogleMap, Marker, Polyline } from '@react-google-maps/api';
 import { colors, sp, rd } from '../styles';
-import { calculateFare, formatFare, generateRouteWaypoints } from '../utils/pricing';
+import { calculateFare, formatFare } from '../utils/pricing';
 import type { VehicleType } from '../types';
 import { createBooking } from '../services/bookings';
 import { useAuth } from '../context/AuthContext';
@@ -221,9 +221,13 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   }, [data.pickupCoord, data.dropoffCoord, data.vehicleType, data.time, data.scheduledTime, data.extraStops.length, data.loadType]);
 
   // ─── Route coords ─────────────────────────────────────────────────────────
-  const routeCoords = useMemo(() => {
+  // Include all stops for complete route (use actual coordinates, not interpolated)
+  const allRoutePoints = useMemo(() => {
     if (!data.pickupCoord || !data.dropoffCoord) return [];
-    return generateRouteWaypoints(data.pickupCoord, data.dropoffCoord);
+    const points: [number, number][] = [data.pickupCoord];
+    data.extraStopsCoord.forEach(c => { if (c[0] !== 0 || c[1] !== 0) points.push(c); });
+    points.push(data.dropoffCoord);
+    return points;
   }, [data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
 
   // Pan map to a single coordinate with smooth animation
@@ -249,14 +253,14 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   // Map fit when route changes — show all waypoints with animation
   // Account for drawer covering bottom ~55% of screen
   useEffect(() => {
-    if (!mapRef.current || !data.pickupCoord || !data.dropoffCoord || routeCoords.length < 2) return;
+    if (!mapRef.current || !data.pickupCoord || !data.dropoffCoord || allRoutePoints.length < 2) return;
     const bounds = new google.maps.LatLngBounds();
     bounds.extend({ lat: data.pickupCoord[0], lng: data.pickupCoord[1] });
     bounds.extend({ lat: data.dropoffCoord[0], lng: data.dropoffCoord[1] });
     data.extraStopsCoord.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
     // top=80 for header, bottom=600 for drawer (55% of ~812px phone height)
     mapRef.current.fitBounds(bounds, { top: 80, bottom: 600, left: 20, right: 20 });
-  }, [routeCoords, data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
+  }, [allRoutePoints, data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
 
   // ─── Vehicle options by service ──────────────────────────────────────────
   const vehicleOptions = VEHICLE_OPTIONS[data.service] || VEHICLE_OPTIONS.delivery;
@@ -376,8 +380,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           <Marker key={i} position={{ lat: c[0], lng: c[1] }}
             icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#FFD600', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
         ))}
-        {routeCoords.length > 1 && (
-          <Polyline path={routeCoords.map(c => ({ lat: c[0], lng: c[1] }))}
+        {allRoutePoints.length > 1 && (
+          <Polyline path={allRoutePoints.map(c => ({ lat: c[0], lng: c[1] }))}
             options={{ strokeColor: colors.primaryBlue, strokeOpacity: 0.8, strokeWeight: 4 }} />
         )}
       </GoogleMap>
@@ -513,6 +517,42 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )
           )}
 
+          {/* Extra stops list — shown between add stop button and dropoff */}
+          {data.extraStops.map((stop, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: '6px', padding: '6px 8px', background: '#FFFDE7', borderRadius: 8, border: '1px solid #FFD70033' }}>
+              <span style={{ fontSize: 11, color: '#FFD700', fontWeight: 700, minWidth: 16 }}>●</span>
+              <span style={{ flex: 1, fontSize: 13, color: colors.darkGrey }}>{stop}</span>
+              {/* Reorder buttons */}
+              <div style={{ display: 'flex', gap: 2 }}>
+                <button
+                  onClick={() => {
+                    if (i === 0) return;
+                    const newStops = [...data.extraStops];
+                    const newCoords = [...data.extraStopsCoord];
+                    [newStops[i - 1], newStops[i]] = [newStops[i], newStops[i - 1]];
+                    [newCoords[i - 1], newCoords[i]] = [newCoords[i], newCoords[i - 1]];
+                    setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
+                  }}
+                  disabled={i === 0}
+                  style={{ background: 'none', border: 'none', fontSize: 12, color: i === 0 ? '#ccc' : colors.textMuted, cursor: i === 0 ? 'not-allowed' : 'pointer', padding: '2px 4px' }}
+                >▲</button>
+                <button
+                  onClick={() => {
+                    if (i === data.extraStops.length - 1) return;
+                    const newStops = [...data.extraStops];
+                    const newCoords = [...data.extraStopsCoord];
+                    [newStops[i], newStops[i + 1]] = [newStops[i + 1], newStops[i]];
+                    [newCoords[i], newCoords[i + 1]] = [newCoords[i + 1], newCoords[i]];
+                    setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
+                  }}
+                  disabled={i === data.extraStops.length - 1}
+                  style={{ background: 'none', border: 'none', fontSize: 12, color: i === data.extraStops.length - 1 ? '#ccc' : colors.textMuted, cursor: i === data.extraStops.length - 1 ? 'not-allowed' : 'pointer', padding: '2px 4px' }}
+                >▼</button>
+              </div>
+              <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer' }}>✕</button>
+            </div>
+          ))}
+
           {/* Dropoff */}
           <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
             <AddressInput
@@ -526,15 +566,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
               <button onClick={() => setData(p => ({ ...p, dropoff: '', dropoffCoord: null }))} style={{ background: 'none', border: 'none', fontSize: 14, color: colors.textMuted, cursor: 'pointer', flexShrink: 0 }}>✕</button>
             )}
           </div>
-
-          {/* Extra stops list */}
-          {data.extraStops.map((stop, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
-              <span style={{ fontSize: 11, color: '#FFD700', fontWeight: 700 }}>●</span>
-              <span style={{ flex: 1, fontSize: 14, color: colors.darkGrey }}>{stop}</span>
-              <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: colors.textMuted }}>✕</button>
-            </div>
-          ))}
 
           {/* ── Service Time ── */}
           <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.md, marginBottom: sp.xs }}>服務時間</div>
