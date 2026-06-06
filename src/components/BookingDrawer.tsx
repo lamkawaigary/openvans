@@ -155,7 +155,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   const [publishSuccess, setPublishSuccess] = useState(false);
   const [newStop, setNewStop] = useState('');
   const [showStopInput, setShowStopInput] = useState(false);
-  const [drawerScale, setDrawerScale] = useState(1.0);
   const [panelVh, setPanelVh] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
@@ -338,8 +337,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           left: 0,
           right: 0,
           height: `${panelVh}dvh`,
-          transform: `scale(${drawerScale})`,
-          transformOrigin: 'bottom center',
           background: colors.white,
           borderRadius: '28px 28px 0 0',
           boxShadow: '0 -4px 30px rgba(0,0,0,0.25)',
@@ -643,17 +640,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
         </div>
       </div>
 
-      {/* Scale controls */}
-      <div style={{ position: 'fixed', bottom: 20, right: 20, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 700 }}>
-        <button
-          onClick={() => setDrawerScale(s => Math.max(0.8, s - 0.1))}
-          style={{ width: 44, height: 44, borderRadius: 22, background: '#fff', border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', fontSize: 20, cursor: 'pointer', fontWeight: 700, color: colors.darkGrey }}
-        >−</button>
-        <button
-          onClick={() => setDrawerScale(s => Math.min(1.5, s + 0.1))}
-          style={{ width: 44, height: 44, borderRadius: 22, background: '#fff', border: 'none', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', fontSize: 20, cursor: 'pointer', fontWeight: 700, color: colors.darkGrey }}
-        >+</button>
-      </div>
     </div>
   );
 }
