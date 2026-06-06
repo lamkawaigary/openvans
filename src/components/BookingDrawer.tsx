@@ -269,19 +269,16 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
       const lat = center.lat();
       const lng = center.lng();
       const addr = await reverseGeocode(lat, lng);
-      // Update state and center map on the confirmed location
       if (adjustingField === 'pickup') {
         setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
-        mapRef.current.panTo({ lat, lng });
-        mapRef.current.setZoom(14);
       } else if (adjustingField === 'dropoff') {
         const pc = data.pickupCoord;
         if (pc) {
           const crossBorder = isHK(pc[0], pc[1]) !== isHK(lat, lng);
           setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
+        } else {
+          setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr }));
         }
-        mapRef.current.panTo({ lat, lng });
-        mapRef.current.setZoom(14);
       } else if (adjustingField?.startsWith('stop:')) {
         const idx = parseInt(adjustingField.split(':')[1]);
         const newStops = [...data.extraStops];
@@ -289,8 +286,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
         newStops[idx] = addr;
         newCoords[idx] = [lat, lng];
         setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
-        mapRef.current.panTo({ lat, lng });
-        mapRef.current.setZoom(14);
       }
       setAdjustingField(null);
     };
@@ -636,17 +631,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                   setAdjustingField('pickup');
                   const c = data.pickupCoord;
                   if (mapRef.current && c) {
-                    // Offset map center up so crosshair (at 22% from top) aligns with this point
-                    const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: c[0], lng: c[1] });
-                    if (point) {
-                      const screenH = window.innerHeight;
-                      const offsetPx = screenH * 0.22; // Move center to 22% from top
-                      const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
-                        new google.maps.Point(point.x, point.y - offsetPx)
-                      );
-                      if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
-                      else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
-                    } else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                    mapRef.current.panTo({ lat: c[0], lng: c[1] });
+                    mapRef.current.setZoom(15);
                   }
                 }}
                 title="微調位置"
@@ -726,15 +712,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                   if (coord && coord[0] !== 0) {
                     setAdjustingField(`stop:${i}`);
                     if (mapRef.current) {
-                      const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: coord[0], lng: coord[1] });
-                      if (point) {
-                        const offsetPx = window.innerHeight * 0.22;
-                        const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
-                          new google.maps.Point(point.x, point.y - offsetPx)
-                        );
-                        if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
-                        else { mapRef.current.panTo({ lat: coord[0], lng: coord[1] }); mapRef.current.setZoom(14); }
-                      } else { mapRef.current.panTo({ lat: coord[0], lng: coord[1] }); mapRef.current.setZoom(14); }
+                      mapRef.current.panTo({ lat: coord[0], lng: coord[1] });
+                      mapRef.current.setZoom(15);
                     }
                   }
                 }}
@@ -762,15 +741,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                   setAdjustingField('dropoff');
                   const c = data.dropoffCoord;
                   if (mapRef.current && c) {
-                    const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: c[0], lng: c[1] });
-                    if (point) {
-                      const offsetPx = window.innerHeight * 0.22;
-                      const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
-                        new google.maps.Point(point.x, point.y - offsetPx)
-                      );
-                      if (newCenter) { mapRef.current.panTo(newCenter); mapRef.current.setZoom(14); }
-                      else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
-                    } else { mapRef.current.panTo({ lat: c[0], lng: c[1] }); mapRef.current.setZoom(14); }
+                    mapRef.current.panTo({ lat: c[0], lng: c[1] });
+                    mapRef.current.setZoom(15);
                   }
                 }}
                 title="微調位置"
