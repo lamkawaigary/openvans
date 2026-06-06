@@ -18,8 +18,9 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 export async function getPlaceSuggestions(query: string) {
   if (!query.trim()) return [];
   try {
+    // Search Hong Kong + Guangdong region, no suffix to avoid limiting results
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&viewbox=113.0,21.8,114.6,23.5&bounded=1&q=${encodeURIComponent(query + ', Guangdong')}&limit=5&addressdetails=1`
+      `https://nominatim.openstreetmap.org/search?format=json&viewbox=113.0,21.8,114.6,23.5&bounded=1&q=${encodeURIComponent(query)}&limit=8&addressdetails=1&countrycodes=cn,hk`
     );
     const data = await res.json();
     return data.map((item: Record<string, unknown>) => ({

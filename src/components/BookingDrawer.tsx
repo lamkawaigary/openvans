@@ -201,7 +201,14 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     return generateRouteWaypoints(data.pickupCoord, data.dropoffCoord);
   }, [data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
 
-  // Map fit when route changes
+  // Pan map to a single coordinate with smooth animation
+  const panToCoord = useCallback((coord: [number, number]) => {
+    if (!mapRef.current) return;
+    mapRef.current.panTo({ lat: coord[0], lng: coord[1] });
+    mapRef.current.setZoom(15);
+  }, []);
+
+  // Map fit when route changes — show all waypoints with animation
   useEffect(() => {
     if (!mapRef.current || !data.pickupCoord || !data.dropoffCoord || routeCoords.length < 2) return;
     const bounds = new google.maps.LatLngBounds();
@@ -227,6 +234,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   // ─── Address selection → cross-border detection ───────────────────────────
   const handlePickupSelect = (addr: string, coord: [number, number]) => {
     setData(p => ({ ...p, pickup: addr, pickupCoord: coord }));
+    panToCoord(coord);
     if (data.dropoffCoord) {
       const crossBorder = isHK(coord[0], coord[1]) !== isHK(data.dropoffCoord[0], data.dropoffCoord[1]);
       setData(p => ({ ...p, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
@@ -235,6 +243,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
 
   const handleDropoffSelect = (addr: string, coord: [number, number]) => {
     setData(p => ({ ...p, dropoff: addr, dropoffCoord: coord }));
+    panToCoord(coord);
     if (data.pickupCoord) {
       const crossBorder = isHK(data.pickupCoord[0], data.pickupCoord[1]) !== isHK(coord[0], coord[1]);
       setData(p => ({ ...p, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
@@ -246,13 +255,16 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     const addr = await reverseGeocode(lat, lng);
     if (!data.pickupCoord) {
       setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
+      panToCoord([lat, lng]);
     } else if (!data.dropoffCoord) {
       const crossBorder = isHK(data.pickupCoord[0], data.pickupCoord[1]) !== isHK(lat, lng);
       setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
+      panToCoord([lat, lng]);
     } else if (data.extraStops.length < 3) {
       setData(p => ({ ...p, extraStops: [...p.extraStops, addr], extraStopsCoord: [...p.extraStopsCoord, [lat, lng]] }));
+      panToCoord([lat, lng]);
     }
-  }, [data.pickupCoord, data.dropoffCoord, data.extraStops.length]);
+  }, [data.pickupCoord, data.dropoffCoord, data.extraStops.length, panToCoord]);
 
   // ─── Drag handlers ────────────────────────────────────────────────────────
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -430,6 +442,37 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )}
           </div>
 
+          {/* Add stop button (inline, between pickup and dropoff) */}
+          {data.extraStops.length < 3 && (
+            showStopInput ? (
+              <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ width: 12, flexShrink: 0 }} />
+                <input
+                  style={{ flex: 1, border: `1.5px solid ${colors.primaryBlue}`, borderRadius: rd.md, padding: `${sp.sm}px`, fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', color: colors.darkGrey, background: '#fff' }}
+                  placeholder="輸入中途站地址"
+                  value={newStop}
+                  onChange={e => setNewStop(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newStop.trim()) {
+                      setData(p => ({ ...p, extraStops: [...p.extraStops, newStop.trim()], extraStopsCoord: [...p.extraStopsCoord, [0, 0]] }));
+                      setNewStop('');
+                      setShowStopInput(false);
+                    }
+                  }}
+                  autoFocus
+                />
+                <button onClick={() => { setNewStop(''); setShowStopInput(false); }} style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer' }}>取消</button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowStopInput(true)}
+                style={{ background: 'none', border: `1.5px dashed ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.xs}px`, fontSize: 12, fontWeight: 600, color: colors.textMuted, cursor: 'pointer', width: '100%', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                + 新增中途站
+              </button>
+            )
+          )}
+
           {/* Route line */}
           <div style={{ width: 2, height: 16, background: colors.lightGrey, marginLeft: 5, marginBottom: sp.xs }} />
 
@@ -448,44 +491,14 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )}
           </div>
 
-          {/* Extra stops */}
+          {/* Extra stops list */}
           {data.extraStops.map((stop, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
-              <div style={{ width: 10, height: 10, borderRadius: 5, background: '#FFD600' }} />
+              <div style={{ width: 10, height: 10, borderRadius: 5, background: '#FFD700' }} />
               <span style={{ flex: 1, fontSize: 14, color: colors.darkGrey }}>{stop}</span>
               <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: colors.textMuted }}>✕</button>
             </div>
           ))}
-
-          {/* Add stop */}
-          {data.extraStops.length < 3 && (
-            showStopInput ? (
-              <div style={{ display: 'flex', gap: sp.xs }}>
-                <input
-                  style={{ flex: 1, border: `1.5px solid ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px`, fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', color: colors.darkGrey }}
-                  placeholder="輸入中途站"
-                  value={newStop}
-                  onChange={e => setNewStop(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newStop.trim()) {
-                      setData(p => ({ ...p, extraStops: [...p.extraStops, newStop.trim()], extraStopsCoord: [...p.extraStopsCoord, [0, 0]] }));
-                      setNewStop('');
-                      setShowStopInput(false);
-                    }
-                  }}
-                  autoFocus
-                />
-                <button
-                  onClick={() => { if (newStop.trim()) { setData(p => ({ ...p, extraStops: [...p.extraStops, newStop.trim()], extraStopsCoord: [...p.extraStopsCoord, [0, 0]] })); setNewStop(''); setShowStopInput(false); } }}
-                  style={{ background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
-                >新增</button>
-              </div>
-            ) : (
-              <button onClick={() => setShowStopInput(true)} style={{ background: 'none', border: `1.5px dashed ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.xs}px`, fontSize: 13, fontWeight: 600, color: colors.textMuted, cursor: 'pointer', width: '100%' }}>
-                + 新增中途站
-              </button>
-            )
-          )}
 
           {/* ── Service Time ── */}
           <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.md, marginBottom: sp.xs }}>服務時間</div>
