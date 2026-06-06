@@ -78,8 +78,8 @@ const LOAD_OPTIONS: { type: LoadSize; icon: string; label: string }[] = [
 ];
 
 // ─── Address Input ───────────────────────────────────────────────────────────
-function AddressInput({ value, onChange, onSelect, placeholder, markerColor }: {
-  value: string; onChange: (v: string) => void; onSelect: (addr: string, coord: [number, number]) => void; placeholder: string; markerColor: string;
+function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
+  value: string; onChange: (v: string) => void; onSelect: (addr: string, coord: [number, number]) => void; placeholder: string; borderColor: string;
 }) {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<PlaceSuggestion[]>([]);
@@ -127,18 +127,27 @@ function AddressInput({ value, onChange, onSelect, placeholder, markerColor }: {
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative', flex: 1 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: sp.xs }}>
-        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${markerColor}`, background: '#fff', flexShrink: 0 }} />
-        <input
-          style={{ flex: 1, border: '1.5px solid #e4e7ec', borderRadius: 8, padding: '8px 12px', fontSize: 15, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, background: '#fff', outline: 'none', boxSizing: 'border-box' }}
-          placeholder={placeholder}
-          value={query}
-          onChange={e => handleChange(e.target.value)}
-          onFocus={() => { setIsFocused(true); if (results.length > 0) setShowResults(true); }}
-          onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 400); }}
-        />
-        {loading && <span style={{ fontSize: 12, color: colors.textMuted, marginLeft: 4 }}>...</span>}
-      </div>
+      <input
+        style={{
+          width: '100%',
+          border: `2px solid ${isFocused ? borderColor : '#e4e7ec'}`,
+          borderRadius: 10,
+          padding: '10px 14px',
+          fontSize: 15,
+          fontFamily: 'Inter, system-ui, sans-serif',
+          color: colors.darkGrey,
+          background: '#fff',
+          outline: 'none',
+          boxSizing: 'border-box',
+          transition: 'border-color 0.15s ease',
+        }}
+        placeholder={placeholder}
+        value={query}
+        onChange={e => handleChange(e.target.value)}
+        onFocus={() => { setIsFocused(true); if (results.length > 0) setShowResults(true); }}
+        onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 400); }}
+      />
+      {loading && <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: colors.textMuted }}>...</span>}
       {results.length > 0 && showResults && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
@@ -175,10 +184,28 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   const [showStopInput, setShowStopInput] = useState(false);
   const [panelVh, setPanelVh] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   const isHK = (lat: number, lng: number) => lat >= 22.1 && lat <= 22.6 && lng >= 113.8 && lng <= 114.5;
+
+  // ─── Auto-detect user location on mount ─────────────────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const addr = await reverseGeocode(latitude, longitude);
+        setData(p => ({ ...p, pickup: addr, pickupCoord: [latitude, longitude] }));
+        setLocationLoading(false);
+        panToCoord([latitude, longitude]);
+      },
+      () => { setLocationLoading(false); },
+      { enableHighAccuracy: false, timeout: 8000 }
+    );
+  }, []);
 
   // ─── Fare calculation ─────────────────────────────────────────────────────
   const fare = useMemo(() => {
@@ -446,13 +473,12 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
 
           {/* Pickup */}
           <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
-            <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.primaryBlue}`, background: '#fff', flexShrink: 0 }} />
             <AddressInput
               value={data.pickup}
               onChange={v => setData(p => ({ ...p, pickup: v, pickupCoord: v ? p.pickupCoord : null }))}
               onSelect={handlePickupSelect}
-              placeholder="起始點（取貨）"
-              markerColor={colors.primaryBlue}
+              placeholder={locationLoading ? '定位中...' : '起始點（取貨）'}
+              borderColor={colors.primaryBlue}
             />
             {data.pickupCoord && (
               <button onClick={() => setData(p => ({ ...p, pickup: '', pickupCoord: null }))} style={{ background: 'none', border: 'none', fontSize: 14, color: colors.textMuted, cursor: 'pointer', flexShrink: 0 }}>✕</button>
@@ -463,9 +489,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           {data.extraStops.length < 3 && (
             showStopInput ? (
               <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ width: 12, flexShrink: 0 }} />
                 <input
-                  style={{ flex: 1, border: `1.5px solid ${colors.primaryBlue}`, borderRadius: rd.md, padding: `${sp.sm}px`, fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', color: colors.darkGrey, background: '#fff' }}
+                  style={{ flex: 1, border: `2px solid ${colors.primaryBlue}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', color: colors.darkGrey, background: '#fff', boxSizing: 'border-box' }}
                   placeholder="輸入中途站地址"
                   value={newStop}
                   onChange={e => setNewStop(e.target.value)}
@@ -490,18 +515,14 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             )
           )}
 
-          {/* Route line */}
-          <div style={{ width: 2, height: 16, background: colors.lightGrey, marginLeft: 5, marginBottom: sp.xs }} />
-
           {/* Dropoff */}
           <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
-            <div style={{ width: 12, height: 12, borderRadius: 6, background: colors.orange, flexShrink: 0 }} />
             <AddressInput
               value={data.dropoff}
               onChange={v => setData(p => ({ ...p, dropoff: v, dropoffCoord: v ? p.dropoffCoord : null }))}
               onSelect={handleDropoffSelect}
               placeholder="目的地（送貨）"
-              markerColor={colors.orange}
+              borderColor={colors.orange}
             />
             {data.dropoffCoord && (
               <button onClick={() => setData(p => ({ ...p, dropoff: '', dropoffCoord: null }))} style={{ background: 'none', border: 'none', fontSize: 14, color: colors.textMuted, cursor: 'pointer', flexShrink: 0 }}>✕</button>
@@ -511,7 +532,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           {/* Extra stops list */}
           {data.extraStops.map((stop, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
-              <div style={{ width: 10, height: 10, borderRadius: 5, background: '#FFD700' }} />
+              <span style={{ fontSize: 11, color: '#FFD700', fontWeight: 700 }}>●</span>
               <span style={{ flex: 1, fontSize: 14, color: colors.darkGrey }}>{stop}</span>
               <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: colors.textMuted }}>✕</button>
             </div>
