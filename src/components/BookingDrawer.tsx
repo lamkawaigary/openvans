@@ -485,19 +485,21 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           {data.extraStops.length < 3 && (
             showStopInput ? (
               <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center', marginBottom: '8px' }}>
-                <input
-                  style={{ flex: 1, border: `2px solid ${colors.primaryBlue}`, borderRadius: 10, padding: '10px 14px', fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', outline: 'none', color: colors.darkGrey, background: '#fff', boxSizing: 'border-box' }}
-                  placeholder="輸入中途站地址"
+                <AddressInput
                   value={newStop}
-                  onChange={e => setNewStop(e.target.value)}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && newStop.trim()) {
-                      setData(p => ({ ...p, extraStops: [...p.extraStops, newStop.trim()], extraStopsCoord: [...p.extraStopsCoord, [0, 0]] }));
-                      setNewStop('');
-                      setShowStopInput(false);
-                    }
+                  onChange={v => setNewStop(v)}
+                  onSelect={(addr, coord) => {
+                    setData(p => ({
+                      ...p,
+                      extraStops: [...p.extraStops, addr],
+                      extraStopsCoord: [...p.extraStopsCoord, coord],
+                    }));
+                    panToCoord(coord);
+                    setNewStop('');
+                    setShowStopInput(false);
                   }}
-                  autoFocus
+                  placeholder="輸入中途站地址"
+                  borderColor="#FFD700"
                 />
                 <button onClick={() => { setNewStop(''); setShowStopInput(false); }} style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer' }}>取消</button>
               </div>
