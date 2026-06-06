@@ -310,6 +310,30 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     }
   }, [data.pickupCoord, data.dropoffCoord, data.extraStops.length, panToCoord]);
 
+  // ─── Marker drag end → update address ─────────────────────────────────────
+  const handleMarkerDragEnd = useCallback(async (which: 'pickup' | 'dropoff' | 'stop', lat: number, lng: number) => {
+    const addr = await reverseGeocode(lat, lng);
+    if (which === 'pickup') {
+      setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
+    } else if (which === 'dropoff') {
+      const pickupCoord = data.pickupCoord;
+      if (pickupCoord) {
+        const crossBorder = isHK(pickupCoord[0], pickupCoord[1]) !== isHK(lat, lng);
+        setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
+      }
+    }
+  }, [data.pickupCoord]);
+
+  // Overload for stop with index
+  const handleStopDragEnd = useCallback(async (idx: number, lat: number, lng: number) => {
+    const addr = await reverseGeocode(lat, lng);
+    const newStops = [...data.extraStops];
+    const newCoords = [...data.extraStopsCoord];
+    newStops[idx] = addr;
+    newCoords[idx] = [lat, lng];
+    setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
+  }, [data.extraStops, data.extraStopsCoord]);
+
   // ─── Drag handlers ────────────────────────────────────────────────────────
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     setIsDragging(true);
@@ -370,14 +394,17 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
       >
         {data.pickupCoord && (
           <Marker position={{ lat: data.pickupCoord[0], lng: data.pickupCoord[1] }}
+            draggable onDragEnd={e => { const lat = e.latLng!.lat(); const lng = e.latLng!.lng(); handleMarkerDragEnd('pickup', lat, lng); }}
             icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: colors.primaryBlue, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
         )}
         {data.dropoffCoord && (
           <Marker position={{ lat: data.dropoffCoord[0], lng: data.dropoffCoord[1] }}
+            draggable onDragEnd={e => { const lat = e.latLng!.lat(); const lng = e.latLng!.lng(); handleMarkerDragEnd('dropoff', lat, lng); }}
             icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: colors.orange, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />
         )}
         {data.extraStopsCoord.map((c, i) => (
-          <Marker key={i} position={{ lat: c[0], lng: c[1] }}
+          c[0] !== 0 && <Marker key={i} position={{ lat: c[0], lng: c[1] }}
+            draggable onDragEnd={e => { const lat = e.latLng!.lat(); const lng = e.latLng!.lng(); handleStopDragEnd(i, lat, lng); }}
             icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: '#FFD600', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />
         ))}
         {allRoutePoints.length > 1 && (
@@ -481,7 +508,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
               borderColor={colors.primaryBlue}
             />
             {data.pickupCoord && (
-              <button onClick={() => setData(p => ({ ...p, pickup: '', pickupCoord: null }))} style={{ background: 'none', border: 'none', fontSize: 14, color: colors.textMuted, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+              <button onClick={() => setData(p => ({ ...p, pickup: '', pickupCoord: null }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
             )}
           </div>
 
@@ -522,8 +549,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: '6px', padding: '6px 8px', background: '#FFFDE7', borderRadius: 8, border: '1px solid #FFD70033' }}>
               <span style={{ fontSize: 11, color: '#FFD700', fontWeight: 700, minWidth: 16 }}>●</span>
               <span style={{ flex: 1, fontSize: 13, color: colors.darkGrey }}>{stop}</span>
-              {/* Reorder buttons */}
-              <div style={{ display: 'flex', gap: 2 }}>
+              {/* Reorder buttons — larger touch targets for mobile */}
+              <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   onClick={() => {
                     if (i === 0) return;
@@ -534,7 +561,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                     setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
                   }}
                   disabled={i === 0}
-                  style={{ background: 'none', border: 'none', fontSize: 12, color: i === 0 ? '#ccc' : colors.textMuted, cursor: i === 0 ? 'not-allowed' : 'pointer', padding: '2px 4px' }}
+                  style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: i === 0 ? '#ccc' : colors.darkGrey, cursor: i === 0 ? 'not-allowed' : 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >▲</button>
                 <button
                   onClick={() => {
@@ -546,10 +573,10 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                     setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
                   }}
                   disabled={i === data.extraStops.length - 1}
-                  style={{ background: 'none', border: 'none', fontSize: 12, color: i === data.extraStops.length - 1 ? '#ccc' : colors.textMuted, cursor: i === data.extraStops.length - 1 ? 'not-allowed' : 'pointer', padding: '2px 4px' }}
+                  style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: i === data.extraStops.length - 1 ? '#ccc' : colors.darkGrey, cursor: i === data.extraStops.length - 1 ? 'not-allowed' : 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >▼</button>
               </div>
-              <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer' }}>✕</button>
+              <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
           ))}
 
@@ -563,7 +590,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
               borderColor={colors.orange}
             />
             {data.dropoffCoord && (
-              <button onClick={() => setData(p => ({ ...p, dropoff: '', dropoffCoord: null }))} style={{ background: 'none', border: 'none', fontSize: 14, color: colors.textMuted, cursor: 'pointer', flexShrink: 0 }}>✕</button>
+              <button onClick={() => setData(p => ({ ...p, dropoff: '', dropoffCoord: null }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
             )}
           </div>
 
