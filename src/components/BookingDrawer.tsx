@@ -107,10 +107,10 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (v.length < 3) { setResults([]); return; }
+      if (v.length < 3) { setResults([]); setShowResults(false); return; }
       const suggestions = await getPlaceSuggestions(v);
       setResults(suggestions);
-      setShowResults(suggestions.length > 0 && isFocused);
+      setShowResults(suggestions.length > 0);
     }, 200);
   };
 
@@ -141,7 +141,7 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
         placeholder={placeholder}
         value={query}
         onChange={e => handleChange(e.target.value)}
-        onFocus={() => { setIsFocused(true); if (results.length > 0) setShowResults(true); }}
+        onFocus={() => { setIsFocused(true); setShowResults(results.length > 0); }}
         onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 150); }}
       />
       {results.length > 0 && showResults && (
