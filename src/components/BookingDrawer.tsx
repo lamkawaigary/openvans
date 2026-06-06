@@ -181,6 +181,8 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   const [panelVh, setPanelVh] = useState(55);
   const [isDragging, setIsDragging] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  // Map center adjustment mode — 'pickup' | 'dropoff' | 'stop:0' | 'stop:1' | 'stop:2' | null
+  const [adjustingField, setAdjustingField] = useState<string | null>(null);
   const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
@@ -413,6 +415,73 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
         )}
       </GoogleMap>
 
+      {/* Map center crosshair — shown when adjusting location */}
+      {adjustingField && (
+        <>
+          {/* Crosshair overlay */}
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 50, height: 50, pointerEvents: 'none', zIndex: 450,
+          }}>
+            <svg viewBox="0 0 50 50" style={{ width: '100%', height: '100%' }}>
+              <line x1="25" y1="0" x2="25" y2="18" stroke={colors.primaryBlue} strokeWidth="2" />
+              <line x1="25" y1="32" x2="25" y2="50" stroke={colors.primaryBlue} strokeWidth="2" />
+              <line x1="0" y1="25" x2="18" y2="25" stroke={colors.primaryBlue} strokeWidth="2" />
+              <line x1="32" y1="25" x2="50" y2="25" stroke={colors.primaryBlue} strokeWidth="2" />
+              <circle cx="25" cy="25" r="10" fill="none" stroke={colors.primaryBlue} strokeWidth="2" />
+              <circle cx="25" cy="25" r="3" fill={colors.primaryBlue} />
+            </svg>
+          </div>
+          {/* Confirm / Cancel buttons */}
+          <div style={{
+            position: 'absolute', bottom: '45%', left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: 12, zIndex: 600,
+          }}>
+            <button
+              onClick={() => setAdjustingField(null)}
+              style={{ background: '#fff', border: '2px solid #e4e7ec', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 600, color: colors.darkGrey, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+            >✕ 取消</button>
+            <button
+              onClick={async () => {
+                if (!mapRef.current) return;
+                const center = mapRef.current.getCenter();
+                if (!center) return;
+                const lat = center.lat();
+                const lng = center.lng();
+                const addr = await reverseGeocode(lat, lng);
+                if (adjustingField === 'pickup') {
+                  setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
+                  panToCoord([lat, lng]);
+                } else if (adjustingField === 'dropoff') {
+                  const pickupCoord = data.pickupCoord;
+                  if (!pickupCoord) return;
+                  const crossBorder = isHK(pickupCoord[0], pickupCoord[1]) !== isHK(lat, lng);
+                  setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
+                  panToCoord([lat, lng]);
+                } else if (adjustingField.startsWith('stop:')) {
+                  const idx = parseInt(adjustingField.split(':')[1]);
+                  const newStops = [...data.extraStops];
+                  const newCoords = [...data.extraStopsCoord];
+                  newStops[idx] = addr;
+                  newCoords[idx] = [lat, lng];
+                  setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
+                  panToCoord([lat, lng]);
+                }
+                setAdjustingField(null);
+              }}
+              style={{ background: colors.primaryBlue, border: 'none', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+            >✓ 確認位置</button>
+          </div>
+          {/* Hint text */}
+          <div style={{
+            position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '8px 16px', borderRadius: 20,
+            fontSize: 13, fontWeight: 600, zIndex: 600, whiteSpace: 'nowrap',
+          }}>捌動地圖到想要的位置，再確認</div>
+        </>
+      )}
+
       {/* Success toast */}
       {publishSuccess && (
         <div style={{
@@ -510,6 +579,13 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             {data.pickupCoord && (
               <button onClick={() => setData(p => ({ ...p, pickup: '', pickupCoord: null }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
             )}
+            {data.pickupCoord && (
+              <button
+                onClick={() => { setAdjustingField('pickup'); const c = data.pickupCoord; if (mapRef.current && c) mapRef.current.panTo({ lat: c[0], lng: c[1] }); }}
+                title="微調位置"
+                style={{ background: adjustingField === 'pickup' ? colors.primaryBlue : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === 'pickup' ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >📍</button>
+            )}
           </div>
 
           {/* Add stop button (inline, between pickup and dropoff) */}
@@ -577,6 +653,11 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                 >▼</button>
               </div>
               <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button
+                onClick={() => { const coord = data.extraStopsCoord[i]; if (coord && coord[0] !== 0) { setAdjustingField(`stop:${i}`); mapRef.current?.panTo({ lat: coord[0], lng: coord[1] }); } }}
+                title="微調位置"
+                style={{ background: adjustingField === `stop:${i}` ? '#FFD700' : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === `stop:${i}` ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >📍</button>
             </div>
           ))}
 
@@ -591,6 +672,13 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             />
             {data.dropoffCoord && (
               <button onClick={() => setData(p => ({ ...p, dropoff: '', dropoffCoord: null }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+            )}
+            {data.dropoffCoord && (
+              <button
+                onClick={() => { setAdjustingField('dropoff'); const c = data.dropoffCoord; if (mapRef.current && c) mapRef.current.panTo({ lat: c[0], lng: c[1] }); }}
+                title="微調位置"
+                style={{ background: adjustingField === 'dropoff' ? colors.orange : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === 'dropoff' ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+              >📍</button>
             )}
           </div>
 
