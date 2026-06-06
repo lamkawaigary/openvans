@@ -107,11 +107,12 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (v.length < 3) { setResults([]); setShowResults(false); return; }
+      if (v.length < 2) { setResults([]); setShowResults(false); return; }
       const suggestions = await getPlaceSuggestions(v);
       setResults(suggestions);
-      setShowResults(suggestions.length > 0);
-    }, 200);
+      setShowResults(suggestions.length > 0 && isFocused);
+      setShowResults(true); // Always show if we have results, regardless of focus state
+    }, 150);
   };
 
   const handleSelect = (suggestion: PlaceSuggestion) => {
@@ -141,8 +142,8 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
         placeholder={placeholder}
         value={query}
         onChange={e => handleChange(e.target.value)}
-        onFocus={() => { setIsFocused(true); setShowResults(results.length > 0); }}
-        onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 150); }}
+        onFocus={() => { setIsFocused(true); if (results.length > 0) setShowResults(true); }}
+        onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 300); }}
       />
       {results.length > 0 && showResults && (
         <div style={{
@@ -151,7 +152,7 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
           zIndex: 1000, maxHeight: 200, overflow: 'auto', marginTop: 4,
         }}>
           {results.map((r, i) => (
-            <div key={i} onMouseDown={e => { e.preventDefault(); handleSelect(r); }} style={{ padding: '10px 12px', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
+            <div key={i} onMouseDown={e => { e.preventDefault(); handleSelect(r); }} onTouchEnd={e => { e.preventDefault(); handleSelect(r); }} style={{ padding: '10px 12px', borderBottom: '1px solid #eee', cursor: 'pointer', touchAction: 'manipulation' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.darkGrey }}>{r.mainText}</div>
               <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{r.secondaryText}</div>
             </div>
