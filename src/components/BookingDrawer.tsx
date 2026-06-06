@@ -84,19 +84,34 @@ function AddressInput({ value, onChange, onSelect, placeholder, markerColor }: {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<PlaceSuggestion[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const [loading, setLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setQuery(value); }, [value]);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleChange = (v: string) => {
     setQuery(v);
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (v.length < 3) { setResults([]); return; }
+      if (v.length < 3) { setResults([]); setLoading(false); return; }
+      setLoading(true);
       const suggestions = await getPlaceSuggestions(v);
       setResults(suggestions);
-      setShowResults(true);
+      setShowResults(suggestions.length > 0);
+      setLoading(false);
     }, 300);
   };
 
@@ -109,17 +124,18 @@ function AddressInput({ value, onChange, onSelect, placeholder, markerColor }: {
   };
 
   return (
-    <div style={{ position: 'relative', flex: 1 }}>
+    <div ref={wrapperRef} style={{ position: 'relative', flex: 1 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: sp.xs }}>
         <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${markerColor}`, background: '#fff', flexShrink: 0 }} />
         <input
-          style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, background: 'transparent', padding: '4px 0' }}
+          style={{ flex: 1, border: '1.5px solid #e4e7ec', borderRadius: 8, padding: '8px 12px', fontSize: 15, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, background: '#fff', outline: 'none', boxSizing: 'border-box' }}
           placeholder={placeholder}
           value={query}
           onChange={e => handleChange(e.target.value)}
           onFocus={() => results.length > 0 && setShowResults(true)}
           onBlur={() => setTimeout(() => setShowResults(false), 200)}
         />
+        {loading && <span style={{ fontSize: 12, color: colors.textMuted, marginLeft: 4 }}>...</span>}
       </div>
       {results.length > 0 && showResults && (
         <div style={{
@@ -128,7 +144,7 @@ function AddressInput({ value, onChange, onSelect, placeholder, markerColor }: {
           zIndex: 1000, maxHeight: 200, overflow: 'auto', marginTop: 4,
         }}>
           {results.map((r, i) => (
-            <div key={i} onMouseDown={() => handleSelect(r)} style={{ padding: '10px 12px', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
+            <div key={i} onMouseDown={e => { e.preventDefault(); handleSelect(r); }} style={{ padding: '10px 12px', borderBottom: '1px solid #eee', cursor: 'pointer' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: colors.darkGrey }}>{r.mainText}</div>
               <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{r.secondaryText}</div>
             </div>
