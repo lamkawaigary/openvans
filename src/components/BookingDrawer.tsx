@@ -184,10 +184,123 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   const [locationLoading, setLocationLoading] = useState(false);
   // Map center adjustment mode — 'pickup' | 'dropoff' | 'stop:0' | 'stop:1' | 'stop:2' | null
   const [adjustingField, setAdjustingField] = useState<string | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   const isHK = (lat: number, lng: number) => lat >= 22.1 && lat <= 22.6 && lng >= 113.8 && lng <= 114.5;
+
+  // ─── Map center adjustment overlay ───────────────────────────────────────
+  useEffect(() => {
+    const container = document.getElementById('booking-map');
+    if (!container) return;
+
+    // Remove existing overlay
+    const existing = document.getElementById('map-adjust-overlay');
+    if (existing) existing.remove();
+
+    if (!adjustingField) return;
+
+    const overlay = document.createElement('div');
+    overlay.id = 'map-adjust-overlay';
+    overlay.style.cssText = `
+      position: absolute; inset: 0; z-index: 400; pointer-events: none;
+    `;
+
+    // Crosshair SVG
+    const crosshair = document.createElement('div');
+    crosshair.style.cssText = `
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 60px; height: 60px;
+    `;
+    crosshair.innerHTML = `
+      <svg viewBox="0 0 60 60" style="width:100%;height:100%">
+        <line x1="30" y1="0" x2="30" y2="22" stroke="#c3ea4f" stroke-width="2.5"/>
+        <line x1="30" y1="38" x2="30" y2="60" stroke="#c3ea4f" stroke-width="2.5"/>
+        <line x1="0" y1="30" x2="22" y2="30" stroke="#c3ea4f" stroke-width="2.5"/>
+        <line x1="38" y1="30" x2="60" y2="30" stroke="#c3ea4f" stroke-width="2.5"/>
+        <circle cx="30" cy="30" r="12" fill="none" stroke="#c3ea4f" stroke-width="2.5"/>
+        <circle cx="30" cy="30" r="4" fill="#c3ea4f"/>
+      </svg>
+    `;
+    overlay.appendChild(crosshair);
+
+    // Hint text
+    const hint = document.createElement('div');
+    hint.style.cssText = `
+      position: absolute; top: 25%; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.75); color: #fff; padding: 10px 18px;
+      border-radius: 24px; font-size: 14px; font-weight: 600;
+      white-space: nowrap; font-family: Inter, system-ui, sans-serif;
+    `;
+    hint.textContent = '拖地圖到想要的位置，再確認';
+    overlay.appendChild(hint);
+
+    // Button container (pointer-events: auto)
+    const btnContainer = document.createElement('div');
+    btnContainer.style.cssText = `
+      position: absolute; bottom: 18%; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 14px; pointer-events: auto;
+    `;
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.style.cssText = `
+      background: #fff; border: 2px solid #e4e7ec; border-radius: 14px;
+      padding: 12px 22px; font-size: 15px; font-weight: 600;
+      color: #333; cursor: pointer; font-family: Inter, system-ui, sans-serif;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    cancelBtn.textContent = '✕ 取消';
+    cancelBtn.onclick = () => setAdjustingField(null);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.style.cssText = `
+      background: #c3ea4f; border: none; border-radius: 14px;
+      padding: 12px 22px; font-size: 15px; font-weight: 700;
+      color: #222; cursor: pointer; font-family: Inter, system-ui, sans-serif;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    confirmBtn.textContent = '✓ 確認位置';
+    confirmBtn.onclick = async () => {
+      if (!mapRef.current) return;
+      const center = mapRef.current.getCenter();
+      if (!center) return;
+      const lat = center.lat();
+      const lng = center.lng();
+      const addr = await reverseGeocode(lat, lng);
+      if (adjustingField === 'pickup') {
+        setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
+        panToCoord([lat, lng]);
+      } else if (adjustingField === 'dropoff') {
+        const pc = data.pickupCoord;
+        if (pc) {
+          const crossBorder = isHK(pc[0], pc[1]) !== isHK(lat, lng);
+          setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
+        }
+        panToCoord([lat, lng]);
+      } else if (adjustingField?.startsWith('stop:')) {
+        const idx = parseInt(adjustingField.split(':')[1]);
+        const newStops = [...data.extraStops];
+        const newCoords = [...data.extraStopsCoord];
+        newStops[idx] = addr;
+        newCoords[idx] = [lat, lng];
+        setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
+        panToCoord([lat, lng]);
+      }
+      setAdjustingField(null);
+    };
+
+    btnContainer.appendChild(cancelBtn);
+    btnContainer.appendChild(confirmBtn);
+    overlay.appendChild(btnContainer);
+
+    container.style.position = 'relative';
+    container.appendChild(overlay);
+    overlayRef.current = overlay;
+
+    return () => { if (overlay.parentNode) overlay.remove(); };
+  }, [adjustingField, data.pickupCoord, data.dropoffCoord, data.extraStops, data.extraStopsCoord]);
 
   // ─── Auto-detect user location on mount ─────────────────────────────────
   useEffect(() => {
@@ -415,73 +528,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             options={{ strokeColor: colors.primaryBlue, strokeOpacity: 0.8, strokeWeight: 4 }} />
         )}
       </GoogleMap>
-
-      {/* Map center crosshair — shown when adjusting location */}
-      {adjustingField && (
-        <>
-          {/* Crosshair overlay */}
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 50, height: 50, pointerEvents: 'none', zIndex: 450,
-          }}>
-            <svg viewBox="0 0 50 50" style={{ width: '100%', height: '100%' }}>
-              <line x1="25" y1="0" x2="25" y2="18" stroke={colors.primaryBlue} strokeWidth="2" />
-              <line x1="25" y1="32" x2="25" y2="50" stroke={colors.primaryBlue} strokeWidth="2" />
-              <line x1="0" y1="25" x2="18" y2="25" stroke={colors.primaryBlue} strokeWidth="2" />
-              <line x1="32" y1="25" x2="50" y2="25" stroke={colors.primaryBlue} strokeWidth="2" />
-              <circle cx="25" cy="25" r="10" fill="none" stroke={colors.primaryBlue} strokeWidth="2" />
-              <circle cx="25" cy="25" r="3" fill={colors.primaryBlue} />
-            </svg>
-          </div>
-          {/* Confirm / Cancel buttons */}
-          <div style={{
-            position: 'absolute', bottom: '45%', left: '50%', transform: 'translateX(-50%)',
-            display: 'flex', gap: 12, zIndex: 600,
-          }}>
-            <button
-              onClick={() => setAdjustingField(null)}
-              style={{ background: '#fff', border: '2px solid #e4e7ec', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 600, color: colors.darkGrey, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-            >✕ 取消</button>
-            <button
-              onClick={async () => {
-                if (!mapRef.current) return;
-                const center = mapRef.current.getCenter();
-                if (!center) return;
-                const lat = center.lat();
-                const lng = center.lng();
-                const addr = await reverseGeocode(lat, lng);
-                if (adjustingField === 'pickup') {
-                  setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
-                  panToCoord([lat, lng]);
-                } else if (adjustingField === 'dropoff') {
-                  const pickupCoord = data.pickupCoord;
-                  if (!pickupCoord) return;
-                  const crossBorder = isHK(pickupCoord[0], pickupCoord[1]) !== isHK(lat, lng);
-                  setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr, isCrossBorder: crossBorder, service: crossBorder ? 'business' : p.service }));
-                  panToCoord([lat, lng]);
-                } else if (adjustingField.startsWith('stop:')) {
-                  const idx = parseInt(adjustingField.split(':')[1]);
-                  const newStops = [...data.extraStops];
-                  const newCoords = [...data.extraStopsCoord];
-                  newStops[idx] = addr;
-                  newCoords[idx] = [lat, lng];
-                  setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
-                  panToCoord([lat, lng]);
-                }
-                setAdjustingField(null);
-              }}
-              style={{ background: colors.primaryBlue, border: 'none', borderRadius: 12, padding: '10px 20px', fontSize: 14, fontWeight: 700, color: '#fff', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-            >✓ 確認位置</button>
-          </div>
-          {/* Hint text */}
-          <div style={{
-            position: 'absolute', top: '30%', left: '50%', transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '8px 16px', borderRadius: 20,
-            fontSize: 13, fontWeight: 600, zIndex: 600, whiteSpace: 'nowrap',
-          }}>捌動地圖到想要的位置，再確認</div>
-        </>
-      )}
 
       {/* Success toast */}
       {publishSuccess && (
