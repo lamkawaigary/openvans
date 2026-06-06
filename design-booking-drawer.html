@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>OpenVans 單頁下單抽屜設計</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Inter', system-ui, sans-serif; background: #1a1a2e; min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 20px; }
+h1 { color: #fff; font-size: 22px; margin-bottom: 8px; text-align: center; }
+.subtitle { color: #9ca3af; font-size: 14px; margin-bottom: 40px; text-align: center; }
+.phone-frame { width: 375px; height: 812px; background: #000; border-radius: 44px; overflow: hidden; position: relative; box-shadow: 0 40px 80px rgba(0,0,0,0.5); }
+.screen { width: 100%; height: 100%; position: relative; overflow: hidden; background: #e8e8e8; }
+
+/* Map area */
+.map-area { position: absolute; inset: 0; background: linear-gradient(135deg, #c8d8e8 0%, #a8b8c8 100%); }
+.map-road { position: absolute; top: 50%; left: 10%; right: 10%; height: 4px; background: #fff; transform: translateY(-50%); }
+.map-road::before { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: repeating-linear-gradient(90deg, transparent, transparent 20px, #ccc 20px, #ccc 24px); }
+.map-road-v { position: absolute; left: 50%; top: 10%; bottom: 10%; width: 4px; background: #fff; transform: translateX(-50%); }
+
+/* Markers */
+.marker-pickup { position: absolute; top: 35%; left: 25%; width: 28px; height: 28px; background: #c3ea4f; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #333; }
+.marker-dropoff { position: absolute; top: 58%; left: 68%; width: 28px; height: 28px; background: #FF6600; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #fff; }
+
+/* Route line */
+.route-line { position: absolute; top: 37%; left: 27%; width: 42%; height: 2px; background: #c3ea4f; transform: rotate(25deg); transform-origin: left center; }
+
+/* Top bar */
+.top-bar { position: absolute; top: 0; left: 0; right: 0; padding: 16px 20px; background: linear-gradient(to bottom, rgba(0,0,0,0.4) 0%, transparent 100%); display: flex; align-items: center; justify-content: space-between; z-index: 10; }
+.menu-btn { width: 40px; height: 40px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; cursor: pointer; }
+.brand { color: #fff; font-size: 18px; font-weight: 900; text-shadow: 0 1px 4px rgba(0,0,0,0.3); }
+.placeholder { width: 40px; }
+
+/* Floating CTA */
+.floating-cta { position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); background: #c3ea4f; color: #333; border: none; border-radius: 28px; padding: 16px 36px; font-size: 17px; font-weight: 800; cursor: pointer; box-shadow: 0 6px 24px rgba(0,0,0,0.25); z-index: 20; white-space: nowrap; }
+
+/* Drawer */
+.drawer { position: absolute; bottom: 0; left: 0; right: 0; background: #fff; border-radius: 28px 28px 0 0; box-shadow: 0 -4px 30px rgba(0,0,0,0.25); z-index: 30; overflow: hidden; transition: height 0.3s ease; }
+
+/* Drag handle */
+.drag-handle { display: flex; align-items: center; justify-content: center; height: 52px; cursor: grab; border-bottom: 1px solid #f2f2f2; background: #fafafa; }
+.drag-bar { width: 52px; height: 7px; background: #cbd5e1; border-radius: 4px; margin-right: 14px; }
+.handle-text { font-size: 15px; font-weight: 800; color: #4a4a4a; letter-spacing: 0.3; }
+
+/* Drawer content */
+.drawer-content { padding: 0 20px 20px; overflow: hidden; }
+
+/* Service tabs */
+.service-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tab { flex: 1; padding: 10px 4px; border-radius: 12px; text-align: center; cursor: pointer; border: none; font-size: 12px; font-weight: 700; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tab-icon { font-size: 22px; }
+.tab.delivery { background: #c3ea4f; }
+.tab.move { background: #f2f2f2; }
+.tab.business { background: #f2f2f2; }
+.tab.active.delivery { background: #c3ea4f; }
+.tab.active.move { background: #c3ea4f; }
+.tab.active.business { background: #c3ea4f; }
+
+/* Section labels */
+.section-label { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; margin-top: 16px; }
+
+/* Address rows */
+.address-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.marker-dot { width: 12px; height: 12px; border-radius: 6px; border: 2px solid; background: #fff; flex-shrink: 0; }
+.marker-dot.blue { border-color: #c3ea4f; }
+.marker-dot.orange { border-color: #FF6600; background: #FF6600; }
+.marker-dot.yellow { background: #FFD700; }
+.address-input { flex: 1; height: 36px; border: 1.5px solid #e4e7ec; border-radius: 8px; padding: 0 12px; font-size: 15px; color: #4a4a4a; outline: none; background: #fff; }
+.address-input:focus { border-color: #c3ea4f; }
+
+/* Route connector */
+.route-connector { width: 2px; height: 20px; background: #f2f2f2; margin-left: 5px; margin-bottom: 10px; }
+
+/* Add stop button */
+.add-stop { background: none; border: 1.5px dashed #e4e7ec; border-radius: 10px; padding: 8px; font-size: 13px; font-weight: 600; color: #9ca3af; cursor: pointer; width: 100%; }
+
+/* Time options */
+.time-options { display: flex; gap: 6px; }
+.time-opt { flex: 1; padding: 10px 4px; border-radius: 10px; text-align: center; cursor: pointer; font-size: 12px; font-weight: 800; }
+.time-opt.now { background: #c3ea4f; }
+.time-opt.4h { background: #f2f2f2; }
+.time-opt.sd { background: #f2f2f2; }
+.time-opt.sc { background: #f2f2f2; }
+
+/* Vehicle options */
+.vehicle-options { display: flex; gap: 8px; }
+.vehicle-opt { flex: 1; background: #e8f4ff; border: 2px solid #c3ea4f; border-radius: 12px; padding: 12px 4px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.vehicle-opt.selected { background: #e8f4ff; border-color: #c3ea4f; }
+.vehicle-opt.disabled { background: #f5f5f5; border-color: #e4e7ec; opacity: 0.5; }
+.vehicle-icon { font-size: 28px; }
+.vehicle-name { font-size: 12px; font-weight: 700; color: #4a4a4a; }
+.vehicle-cap { font-size: 10px; color: #9ca3af; }
+
+/* Cargo options */
+.cargo-options { display: flex; gap: 8px; }
+.cargo-opt { flex: 1; background: #fff; border: 2px solid #e4e7ec; border-radius: 12px; padding: 10px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.cargo-opt.selected { background: #e8f4ff; border-color: #c3ea4f; }
+.cargo-icon { font-size: 22px; }
+.cargo-name { font-size: 12px; font-weight: 700; }
+
+/* Fare card */
+.fare-card { background: #f0f7ff; border: 1.5px solid rgba(195,234,79,0.2); border-radius: 16px; padding: 16px; margin-top: 16px; display: flex; justify-content: space-between; align-items: center; }
+.fare-info { font-size: 12px; color: #9ca3af; }
+.fare-price { font-size: 32px; font-weight: 900; color: #c3ea4f; line-height: 1.1; }
+
+/* Confirm button */
+.confirm-btn { width: 100%; padding: 16px; background: #c3ea4f; color: #333; border: none; border-radius: 16px; font-size: 16px; font-weight: 800; cursor: pointer; margin-top: 12px; }
+
+/* Scale controls */
+.scale-controls { position: absolute; bottom: 100px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 40; }
+.scale-btn { width: 44px; height: 44px; border-radius: 22px; background: #fff; border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 20px; font-weight: 700; cursor: pointer; color: #4a4a4a; }
+
+/* Design notes */
+.notes { margin-top: 40px; width: 375px; }
+.notes h2 { color: #fff; font-size: 16px; margin-bottom: 16px; }
+.notes ul { color: #9ca3af; font-size: 13px; line-height: 1.8; padding-left: 20px; }
+.notes li { margin-bottom: 4px; }
+.highlight { color: #c3ea4f; font-weight: 600; }
+
+/* Arrows */
+.dynamic-arrow { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); color: #c3ea4f; font-size: 14px; animation: bounce 1.5s infinite; }
+@keyframes bounce { 0%, 100% { transform: translateX(-50%) translateY(0); } 50% { transform: translateX(-50%) translateY(4px); } }
+</style>
+</head>
+<body>
+
+<h1>📦 OpenVans 下單抽屜一體化設計</h1>
+<p class="subtitle">單頁流式 · 動態更新 · 浮動可縮放</p>
+
+<!-- Phone mockup -->
+<div class="phone-frame">
+  <div class="screen">
+    <!-- Map -->
+    <div class="map-area">
+      <div class="map-road"></div>
+      <div class="map-road-v"></div>
+      <div class="marker-pickup">A</div>
+      <div class="marker-dropoff">B</div>
+      <div class="route-line"></div>
+    </div>
+
+    <!-- Top bar -->
+    <div class="top-bar">
+      <button class="menu-btn">☰</button>
+      <span class="brand">OpenVans</span>
+      <div class="placeholder"></div>
+    </div>
+
+    <!-- Floating CTA (collapsed state - when drawer is closed) -->
+    <div class="floating-cta">速遞 / 叫車 →</div>
+
+    <!-- Floating Drawer (expanded) -->
+    <div class="drawer" style="height: 620px;">
+      <!-- Drag handle -->
+      <div class="drag-handle">
+        <div class="drag-bar"></div>
+        <span class="handle-text">▼ 收起</span>
+      </div>
+
+      <!-- Dynamic flow arrows -->
+      <div style="position: absolute; top: 65px; right: 20px; font-size: 11px; color: #9ca3af; text-align: right; line-height: 1.5;">
+        <div>↓ 地址 → 服務</div>
+        <div>↓ 車型 → 估價</div>
+        <div style="color: #c3ea4f; font-weight: 700;">即時更新 ✓</div>
+      </div>
+
+      <div class="drawer-content">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h2 style="font-size: 17px; font-weight: 800; color: #4a4a4a;">📦 安排送貨</h2>
+          <button style="background: none; border: none; font-size: 18px; color: #9ca3af; cursor: pointer;">✕</button>
+        </div>
+
+        <!-- Service Tabs -->
+        <div class="section-label">服務類型</div>
+        <div class="service-tabs">
+          <button class="tab delivery active">
+            <span class="tab-icon">📦</span>
+            速遞
+          </button>
+          <button class="tab move">
+            <span class="tab-icon">🚚</span>
+            叫車
+          </button>
+          <button class="tab business">
+            <span class="tab-icon">🚗</span>
+            商務
+          </button>
+        </div>
+
+        <!-- Addresses -->
+        <div class="section-label">地址</div>
+        <div class="address-row">
+          <div class="marker-dot blue"></div>
+          <input class="address-input" value="九龍觀塘海濱道135號" readonly>
+        </div>
+        <div class="route-connector"></div>
+        <div class="address-row">
+          <div class="marker-dot orange"></div>
+          <input class="address-input" value="香港仔大道123號" readonly>
+        </div>
+        <button class="add-stop">+ 新增中途站</button>
+
+        <!-- Time -->
+        <div class="section-label">服務時間</div>
+        <div class="time-options">
+          <div class="time-opt now">即時<div style="font-size: 10px; color: #fff8;">+30%</div></div>
+          <div class="time-opt 4h">4小時</div>
+          <div class="time-opt sd">即日<div style="font-size: 10px;">9折</div></div>
+          <div class="time-opt sc">預約</div>
+        </div>
+
+        <!-- Cargo (for delivery) -->
+        <div class="section-label">货物大小</div>
+        <div class="cargo-options">
+          <div class="cargo-opt selected">
+            <span class="cargo-icon">📦</span>
+            <span class="cargo-name">小件</span>
+          </div>
+          <div class="cargo-opt">
+            <span class="cargo-icon">🧳</span>
+            <span class="cargo-name">中件</span>
+          </div>
+          <div class="cargo-opt">
+            <span class="cargo-icon">🚢</span>
+            <span class="cargo-name">大件</span>
+          </div>
+        </div>
+
+        <!-- Vehicle -->
+        <div class="section-label">車型（根據地址自動推薦）</div>
+        <div class="vehicle-options">
+          <div class="vehicle-opt selected">
+            <span class="vehicle-icon">🏍️</span>
+            <span class="vehicle-name">電單車</span>
+            <span class="vehicle-cap">~50kg · 推薦</span>
+          </div>
+          <div class="vehicle-opt">
+            <span class="vehicle-icon">🚚</span>
+            <span class="vehicle-name">輕型貨車</span>
+            <span class="vehicle-cap">~1000kg</span>
+          </div>
+        </div>
+
+        <!-- Fare -->
+        <div class="fare-card">
+          <div class="fare-info">
+            <div>12.5km · 約32分鐘</div>
+            <div style="font-size: 11px; color: #9ca3af; margin-top: 2px;">估計總費</div>
+          </div>
+          <div class="fare-price">HK$87</div>
+        </div>
+
+        <!-- Confirm -->
+        <button class="confirm-btn">確認發佈 ✓</button>
+      </div>
+    </div>
+
+    <!-- Scale controls -->
+    <div class="scale-controls">
+      <button class="scale-btn">+</button>
+      <button class="scale-btn">−</button>
+    </div>
+  </div>
+</div>
+
+<!-- Design notes -->
+<div class="notes">
+  <h2>🎯 設計要點</h2>
+  <ul>
+    <li><span class="highlight">單頁流式</span> — 所有 section 由上而下排列，唔再分 Step 1/2/3</li>
+    <li><span class="highlight">動態更新</span> — 揀地址後，車型/货物/時間/估價即時變化</li>
+    <li><span class="highlight">浮動抽屜</span> — 可向上拖動展開，向下滑收起（snap 30%/70%）</li>
+    <li><span class="highlight">縮放控制</span> — 右下角 +/- 按鈕，0.8x ~ 1.5x 範圍</li>
+    <li><span class="highlight">地圖全程可見</span> — 揀地址時可點擊地圖直接選擇位置</li>
+    <li><span class="highlight">車型自動推薦</span> — 根據货物大小自動 highlight 適用車型</li>
+    <li><span class="highlight">跨境檢測</span> — 起點/終點跨港深自動切換為商務模式</li>
+  </ul>
+</div>
+
+</body>
+</html>

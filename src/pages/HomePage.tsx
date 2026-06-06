@@ -1,13 +1,12 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { GoogleMap, Marker, Polyline } from '@react-google-maps/api';
+import { useState, useEffect, useRef } from 'react';
+import { GoogleMap, Marker } from '@react-google-maps/api';
 import { useNavigate } from 'react-router-dom';
-import AddressSearchInput from '../components/AddressSearchInput';
 import { useAuth } from '../context/AuthContext';
 import { useSideMenu } from '../context/SideMenuContext';
-import { subscribeToPendingBookings, createBooking } from '../services/bookings';
-import { calculateFare, formatFare, generateRouteWaypoints } from '../utils/pricing';
-import type { Booking, VehicleType } from '../types';
-import { colors, sp, rd } from '../styles';
+import { subscribeToPendingBookings } from '../services/bookings';
+import BookingDrawer from '../components/BookingDrawer';
+import type { Booking } from '../types';
+import { colors, sp } from '../styles';
 
 const HK_CENTER = { lat: 22.3193, lng: 114.1694 };
 const MAP_STYLE: google.maps.MapTypeStyle[] = [
@@ -15,20 +14,8 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: 'transit', stylers: [{ visibility: 'simplified' }] },
 ];
 
-type PanelFlow = 'step1' | 'step2' | 'step3' | 'closed';
-type ServiceTab = 'move' | 'delivery' | 'business';
-
-export interface PlaceSuggestion {
-  placeId: string;
-  description: string;
-  mainText: string;
-  secondaryText: string;
-  lat: number;
-  lon: number;
-}
-
-// ─── Places API (Nominatim + Google Places) ───────────────────────────────
-export async function getPlaceSuggestions(query: string): Promise<PlaceSuggestion[]> {
+// ─── Places API (Nominatim) ───────────────────────────────────────────────
+export async function getPlaceSuggestions(query: string) {
   if (!query.trim()) return [];
   try {
     const res = await fetch(
@@ -46,6 +33,15 @@ export async function getPlaceSuggestions(query: string): Promise<PlaceSuggestio
   } catch { return []; }
 }
 
+export interface PlaceSuggestion {
+  placeId: string;
+  description: string;
+  mainText: string;
+  secondaryText: string;
+  lat: number;
+  lon: number;
+}
+
 export async function getPlaceCoords(placeId: string): Promise<[number, number] | null> {
   try {
     const res = await fetch(
@@ -57,7 +53,6 @@ export async function getPlaceCoords(placeId: string): Promise<[number, number] 
   return null;
 }
 
-// ─── Geocode helpers ────────────────────────────────────────────────────────
 export async function geocodeAddress(address: string): Promise<[number, number] | null> {
   const suggestions = await getPlaceSuggestions(address);
   if (suggestions.length > 0) return [suggestions[0].lat, suggestions[0].lon];
@@ -74,520 +69,14 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
   } catch { return `${lat.toFixed(5)}, ${lng.toFixed(5)}`; }
 }
 
-interface SheetData {
-  pickup: string;
-  pickupCoord: [number, number] | null;
-  dropoff: string;
-  dropoffCoord: [number, number] | null;
-  extraStops: string[];
-  extraStopsCoord: [number, number][];
-  service: ServiceTab;
-  isCrossBorder: boolean;
-  time: string;
-  scheduledTime?: Date;
-  vehicleType: VehicleType;
-  loadType?: 'small' | 'medium' | 'large';
-  loadWeight?: string;
-  hasInsurance?: boolean;
-  hasAssistant?: boolean;
-  passengerCount?: number;
-  notes?: string;
-}
-
-const DEFAULT_DATA: SheetData = {
-  pickup: '', pickupCoord: null,
-  dropoff: '', dropoffCoord: null,
-  extraStops: [], extraStopsCoord: [],
-  service: 'move',
-  isCrossBorder: false,
-  time: 'now',
-  vehicleType: 'light',
-  loadType: 'small',
-  passengerCount: 1,
-};
-
-const SERVICE_TABS: { key: ServiceTab; label: string; emoji: string; desc: string }[] = [
-  { key: 'move', label: '🚗 叫車', emoji: '🚗', desc: '載客出行' },
-  { key: 'delivery', label: '📦 速遞', emoji: '📦', desc: '物品寄送' },
-];
-
-// ─── Map component ─────────────────────────────────────────────────────────
-interface GoogleMapWrapperProps {
-  center: { lat: number; lng: number };
-  zoom: number;
-  pickupCoord: [number, number] | null;
-  dropoffCoord: [number, number] | null;
-  routeCoords: [number, number][];
-  bookings: Booking[];
-  clickMode: boolean;
-  extraStopMarkers?: [number, number][];
-  onMapClick?: (lat: number, lng: number) => void;
-  onMarkerClick?: (id: string) => void;
-}
-
-function GoogleMapWrapper({
-  center, zoom, pickupCoord, dropoffCoord, routeCoords, bookings,
-  clickMode, extraStopMarkers = [], onMapClick, onMarkerClick
-}: GoogleMapWrapperProps) {
-  const mapRef = useRef<google.maps.Map | null>(null);
-
-  const onMapLoad = useCallback((node: google.maps.Map | null) => {
-    mapRef.current = node;
-    if (!node) return;
-    if (pickupCoord && dropoffCoord) {
-      const bounds = new google.maps.LatLngBounds();
-      bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
-      bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
-      extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-      node.fitBounds(bounds, { top: 80, bottom: 360, left: 20, right: 20 });
-    } else if (pickupCoord) {
-      node.panTo({ lat: pickupCoord[0], lng: pickupCoord[1] });
-    } else if (dropoffCoord) {
-      node.panTo({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
-    }
-  }, [pickupCoord, dropoffCoord, extraStopMarkers]);
-
-  // Re-fit when route coords update (after waypoints/directions load)
-  useEffect(() => {
-    if (!mapRef.current || !pickupCoord || !dropoffCoord || routeCoords.length < 2) return;
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend({ lat: pickupCoord[0], lng: pickupCoord[1] });
-    bounds.extend({ lat: dropoffCoord[0], lng: dropoffCoord[1] });
-    extraStopMarkers.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-    mapRef.current.fitBounds(bounds, { top: 80, bottom: 360, left: 20, right: 20 });
-  }, [routeCoords, pickupCoord, dropoffCoord, extraStopMarkers]);
-
-  return (
-    <GoogleMap
-      id="main-map"
-      mapContainerStyle={{ width: '100%', height: '100%' }}
-      center={center}
-      zoom={zoom}
-      onLoad={onMapLoad}
-      options={{ styles: MAP_STYLE, disableDefaultUI: true, zoomControl: true }}
-      onClick={e => clickMode && onMapClick?.((e as google.maps.MapMouseEvent).latLng!.lat(), (e as google.maps.MapMouseEvent).latLng!.lng())}
-    >
-      {pickupCoord && <Marker position={{ lat: pickupCoord[0], lng: pickupCoord[1] }} icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: colors.primaryBlue, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />}
-      {dropoffCoord && <Marker position={{ lat: dropoffCoord[0], lng: dropoffCoord[1] }} icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: colors.orange, fillOpacity: 1, strokeColor: '#fff', strokeWeight: 3 }} />}
-      {extraStopMarkers.map((c, i) => <Marker key={i} position={{ lat: c[0], lng: c[1] }} icon={{ path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: '#FFD600', fillOpacity: 1, strokeColor: '#fff', strokeWeight: 2 }} />)}
-      {routeCoords.length > 1 && <Polyline path={routeCoords.map(c => ({ lat: c[0], lng: c[1] }))} options={{ strokeColor: colors.primaryBlue, strokeOpacity: 0.8, strokeWeight: 4 }} />}
-      {bookings.map(b => <Marker key={b.id} position={{ lat: b.pickupLat ?? 0, lng: b.pickupLng ?? 0 }} onClick={() => onMarkerClick?.(b.id)} />)}
-    </GoogleMap>
-  );
-}
-
-// ─── Step Indicator ────────────────────────────────────────────────────────
-function StepIndicator({ currentStep, onGoToStep }: { currentStep: 1 | 2 | 3; onGoToStep?: (step: 1 | 2 | 3) => void }) {
-  const steps = [
-    { step: 1 as const, label: '填地址' },
-    { step: 2 as const, label: '選擇服務' },
-    { step: 3 as const, label: '選擇車型' },
-  ];
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: sp.xs, padding: `${sp.sm}px ${sp.md}px`, background: colors.white, borderBottom: `1px solid ${colors.lightGrey}` }}>
-      {steps.map(({ step, label }, i) => {
-        const active = step === currentStep;
-        return (
-          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button
-              onClick={() => step < currentStep && onGoToStep?.(step)}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: step < currentStep ? 'pointer' : 'default', padding: '4px 6px', borderRadius: 12 }}
-            >
-              <div style={{ width: 24, height: 24, borderRadius: 12, background: active ? colors.primaryBlue : step < currentStep ? '#B8D4F0' : colors.lightGrey, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 11, fontWeight: 800, color: active ? '#fff' : step < currentStep ? colors.primaryBlue : colors.textMuted }}>{step}</span>
-              </div>
-              <span style={{ fontSize: 12, fontWeight: active ? 700 : 500, color: active ? colors.primaryBlue : step < currentStep ? colors.primaryBlue : colors.textMuted }}>{label}</span>
-            </button>
-            {i < steps.length - 1 && <span style={{ color: colors.lightGrey, fontSize: 14, margin: '0 2px' }}>›</span>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-// ─── Step 1 Form — Route Input ─────────────────────────────────────────────
-interface Step1FormProps {
-  data: SheetData;
-  setData: React.Dispatch<React.SetStateAction<SheetData>>;
-  onPreview: () => void;
-}
-
-function Step1Form({ data, setData, onPreview }: Step1FormProps) {
-  const [pickupInput, setPickupInput] = useState(data.pickup || '');
-  const [dropoffInput, setDropoffInput] = useState(data.dropoff || '');
-  const [newStop, setNewStop] = useState('');
-  const [showStopInput, setShowStopInput] = useState(false);
-
-  const canPreview = data.pickupCoord && data.dropoffCoord;
-
-  // Sync input values when data changes (e.g., back from step2)
-  useEffect(() => {
-    setPickupInput(data.pickup || '');
-    setDropoffInput(data.dropoff || '');
-  }, [data.pickup, data.dropoff]);
-
-  const addStop = () => {
-    if (newStop.trim()) {
-      setData(prev => ({
-        ...prev,
-        extraStops: [...prev.extraStops, newStop.trim()],
-        extraStopsCoord: [...prev.extraStopsCoord, [0, 0]],
-      }));
-      setNewStop('');
-      setShowStopInput(false);
-    }
-  };
-
-  return (
-    <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
-      {/* Pickup */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
-        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.primaryBlue}`, background: '#fff', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <AddressSearchInput
-            value={pickupInput}
-            onChange={v => { setPickupInput(v); if (!v) setData(p => ({ ...p, pickup: v, pickupCoord: null })); }}
-            onSelect={(addr, coord) => { setPickupInput(addr); setData(p => ({ ...p, pickup: addr, pickupCoord: coord })); }}
-            placeholder="起始點（取貨）"
-          />
-        </div>
-        {data.pickupCoord && <span style={{ fontSize: 14 }}>📍</span>}
-      </div>
-
-      {/* Dropoff */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, minHeight: 48 }}>
-        <div style={{ width: 12, height: 12, borderRadius: 6, border: `2px solid ${colors.orange}`, background: '#fff', flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <AddressSearchInput
-            value={dropoffInput}
-            onChange={v => { setDropoffInput(v); if (!v) setData(p => ({ ...p, dropoff: v, dropoffCoord: null })); }}
-            onSelect={(addr, coord) => { setDropoffInput(addr); setData(p => ({ ...p, dropoff: addr, dropoffCoord: coord })); }}
-            placeholder="目的地（送貨）"
-          />
-        </div>
-        {data.dropoffCoord && <span style={{ fontSize: 14 }}>📍</span>}
-      </div>
-
-      {/* Extra stops */}
-      {data.extraStops.map((stop, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm }}>
-          <div style={{ width: 10, height: 10, borderRadius: 5, background: '#FFD600' }} />
-          <span style={{ flex: 1, fontSize: 14, color: colors.darkGrey }}>{stop}</span>
-          <button style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: colors.textMuted }} onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))}>✕</button>
-        </div>
-      ))}
-
-      {/* Add stop */}
-      <button style={{ background: 'none', border: `1.5px dashed ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.xs}px`, fontSize: 13, fontWeight: 600, color: colors.textMuted, cursor: 'pointer' }} onClick={() => setShowStopInput(true)}>
-        + 新增中途站
-      </button>
-      {showStopInput && (
-        <div style={{ display: 'flex', gap: sp.xs }}>
-          <input style={{ flex: 1, border: `1.5px solid ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, fontSize: 15, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, outline: 'none', boxSizing: 'border-box' as const }} placeholder="輸入中途站" value={newStop} onChange={e => setNewStop(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addStop(); }} autoFocus />
-          <button style={{ background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.md, padding: `${sp.sm}px ${sp.md}px`, fontSize: 14, fontWeight: 700, cursor: 'pointer' }} onClick={addStop}>新增</button>
-        </div>
-      )}
-
-      {/* Preview route button */}
-      <div style={{ display: 'flex', gap: sp.sm, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        <button
-          style={{ flex: 1, background: canPreview ? colors.primaryBlue : colors.lightGrey, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: canPreview ? 'pointer' : 'not-allowed' }}
-          disabled={!canPreview}
-          onClick={onPreview}
-        >
-          速遞 / 叫車 →
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 2 Form — Options & Publish ──────────────────────────────────────
-interface Step2FormProps {
-  data: SheetData;
-  setData: React.Dispatch<React.SetStateAction<SheetData>>;
-  fare: { total: number; distanceKm: number; estimatedMinutes: number; baseFare: number; distanceFare: number; speedSurcharge: number } | null;
-  onBackToStep1: () => void;
-  onServiceSelect: () => void;
-}
-
-function Step2Form({ data, setData, fare, onBackToStep1, onServiceSelect }: Step2FormProps) {
-  const [showDateTimePicker, setShowDateTimePicker] = useState(!!data.scheduledTime);
-  const [scheduledDate, setScheduledDate] = useState(() => {
-    const d = new Date(); d.setHours(d.getHours() + 1, 0, 0, 0);
-    return d.toISOString().slice(0, 16);
-  });
-
-  const SERVICE_SPEED = [
-    { key: 'now', label: '即時', surcharge: '+30%' },
-    { key: '4hour', label: '4小時', surcharge: '' },
-    { key: 'sameday', label: '即日', surcharge: '9折' },
-  ];
-
-  const handleScheduleChange = (val: string) => {
-    setScheduledDate(val);
-    setData(p => ({ ...p, scheduledTime: new Date(val) }));
-  };
-
-  const setTimeAndMode = (key: string) => {
-    setData(p => ({ ...p, time: key }));
-    if (key === 'scheduled') setShowDateTimePicker(true);
-    else setShowDateTimePicker(false);
-  };
-
-  // Sync showDateTimePicker when data.time changes from parent (e.g., back navigation)
-  useEffect(() => {
-    if (data.time === 'scheduled' && data.scheduledTime) {
-      setShowDateTimePicker(true);
-      // Update scheduledDate to match data.scheduledTime
-      setScheduledDate(new Date(data.scheduledTime).toISOString().slice(0, 16));
-    } else if (data.time === 'now') {
-      setShowDateTimePicker(false);
-    }
-  }, [data.time, data.scheduledTime]);
-
-  return (
-    <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
-      {/* Time mode — shown first */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>服務時間</div>
-      <div style={{ display: 'flex', gap: sp.xs }}>
-        {SERVICE_SPEED.map(opt => {
-          const isActive = data.time === opt.key;
-          return (
-            <div key={opt.key} style={{ flex: 1, background: isActive ? colors.primaryBlue : colors.lightGrey, borderRadius: rd.md, padding: `${sp.sm}px 4px`, textAlign: 'center', cursor: 'pointer' }} onClick={() => setTimeAndMode(opt.key)}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: isActive ? '#fff' : colors.darkGrey }}>{opt.label}</span>
-              {opt.surcharge && <div style={{ fontSize: 10, color: isActive ? '#fff8' : colors.textMuted }}>{opt.surcharge}</div>}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Datetime picker for scheduled */}
-      {showDateTimePicker && (
-        <div style={{ background: '#E8F4FF', border: `1.5px solid ${colors.primaryBlue}44`, borderRadius: rd.lg, padding: sp.md }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: colors.primaryBlue, marginBottom: sp.xs }}>📅 選擇預約時間</div>
-          <input
-            type="datetime-local"
-            value={scheduledDate}
-            onChange={e => handleScheduleChange(e.target.value)}
-            min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-            style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${colors.lightGrey}`, borderRadius: rd.md, fontSize: 15, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, outline: 'none', boxSizing: 'border-box' as const }}
-          />
-          <div style={{ display: 'flex', gap: sp.xs, marginTop: sp.xs }}>
-            {([['2小時後', 2], ['4小時後', 4], ['明天上午', -1]] as [string, number][]).map(([label, hrs]) => (
-              <button key={label} style={{ flex: 1, padding: '7px 4px', background: colors.white, border: `1px solid ${colors.primaryBlue}44`, borderRadius: rd.md, fontSize: 11, fontWeight: 700, color: colors.primaryBlue, cursor: 'pointer' }} onClick={() => { const d = new Date(); if (hrs === -1) { d.setHours(9, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); } else { d.setHours(d.getHours() + hrs, 0, 0, 0); } handleScheduleChange(d.toISOString().slice(0, 16)); }}>
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Service type selector — conditional on cross-border */}
-      {data.isCrossBorder ? (
-        <div
-          style={{ background: '#F3E8FF', border: '2px solid #8B5CF6', borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-          onClick={() => setData(p => ({ ...p, service: 'business', vehicleType: 'van_7' }))}
-        >
-          <span style={{ fontSize: 28 }}>🚗</span>
-          <div style={{ fontSize: 14, fontWeight: 800, color: '#8B5CF6' }}>商務</div>
-          <div style={{ fontSize: 11, color: colors.textMuted }}>跨境接送·七人車</div>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', gap: sp.sm }}>
-          <div
-            style={{ flex: 1, background: data.service === 'delivery' ? '#FFF3E0' : colors.white, border: `2px solid ${data.service === 'delivery' ? colors.orange : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-            onClick={() => setData(p => ({ ...p, service: 'delivery', vehicleType: 'motorcycle' }))}
-          >
-            <span style={{ fontSize: 26 }}>📦</span>
-            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'delivery' ? colors.orange : colors.darkGrey }}>速遞</div>
-            <div style={{ fontSize: 10, color: colors.textMuted }}>電單車·輕型貨車</div>
-          </div>
-          <div
-            style={{ flex: 1, background: data.service === 'move' ? '#E8F4FF' : colors.white, border: `2px solid ${data.service === 'move' ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-            onClick={() => setData(p => ({ ...p, service: 'move', vehicleType: 'light' }))}
-          >
-            <span style={{ fontSize: 26 }}>🚚</span>
-            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'move' ? colors.primaryBlue : colors.darkGrey }}>叫車</div>
-            <div style={{ fontSize: 10, color: colors.textMuted }}>輕型·5.5噸·9.5噸</div>
-          </div>
-          <div
-            style={{ flex: 1, background: data.service === 'business' ? '#F3E8FF' : colors.white, border: `2px solid ${data.service === 'business' ? '#8B5CF6' : colors.lightGrey}`, borderRadius: rd.lg, padding: `${sp.md}px`, cursor: 'pointer', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}
-            onClick={() => setData(p => ({ ...p, service: 'business', vehicleType: 'van_7' }))}
-          >
-            <span style={{ fontSize: 26 }}>🚗</span>
-            <div style={{ fontSize: 13, fontWeight: 800, color: data.service === 'business' ? '#8B5CF6' : colors.darkGrey }}>商務</div>
-            <div style={{ fontSize: 10, color: colors.textMuted }}>七人車·跨境接送</div>
-          </div>
-        </div>
-      )}
-
-      {/* Route info */}
-      {fare && (
-        <div style={{ background: '#F0F7FF', borderRadius: rd.lg, padding: sp.md, border: `1.5px solid ${colors.primaryBlue}22`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 13, color: colors.textMuted }}>{fare.distanceKm}km · 約{fare.estimatedMinutes}分鐘</span>
-          <span style={{ fontSize: 22, fontWeight: 900, color: colors.primaryBlue }}>{formatFare(fare.total)}</span>
-        </div>
-      )}
-
-      {/* Back */}
-      <button style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }} onClick={onBackToStep1}>
-        ← 返回修改地址
-      </button>
-
-      {/* Next button */}
-      <div style={{ display: 'flex', gap: sp.sm, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        <button style={{ flex: '0 0 auto', background: colors.white, color: colors.primaryBlue, border: `2px solid ${colors.primaryBlue}`, borderRadius: rd.lg, padding: `${sp.md}px ${sp.lg}px`, fontSize: 15, fontWeight: 700, cursor: 'pointer' }} onClick={onBackToStep1}>← 返回</button>
-        <button style={{ flex: 1, background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: 'pointer' }} onClick={onServiceSelect}>下一步 →</button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Step 3 Form — Vehicle + Fare + Confirm ─────────────────────────────────
-interface Step3FormProps {
-  data: SheetData;
-  setData: React.Dispatch<React.SetStateAction<SheetData>>;
-  fare: { total: number; distanceKm: number; estimatedMinutes: number; baseFare: number; distanceFare: number; speedSurcharge: number } | null;
-  onBack: () => void;
-  onPublish: () => void;
-}
-
-function Step3Form({ data, setData, fare, onBack, onPublish }: Step3FormProps) {
-  const [notes, setNotes] = useState(data.notes ?? '');
-
-  // Vehicle options by service
-  const vehicleOptions: { type: VehicleType; icon: string; label: string; sub: string }[] =
-    data.service === 'delivery' ? [
-      { type: 'motorcycle', icon: '🏍️', label: '電單車', sub: '~50kg' },
-      { type: 'light', icon: '🚚', label: '輕型貨車', sub: '~1000kg' },
-    ] : data.service === 'move' ? [
-      { type: 'light', icon: '🚚', label: '輕型貨車', sub: 'HiAce/TownAce' },
-      { type: 'truck_5_5t', icon: '🚛', label: '5.5噸', sub: '大型貨運' },
-      { type: 'truck_9_5t', icon: '🚜', label: '9.5噸', sub: '超大型貨運' },
-    ] : [
-      { type: 'van_7', icon: '🚗', label: '商務七人車', sub: '機場·跨境接送' },
-    ];
-
-  return (
-    <div style={{ padding: `0 ${sp.md}px ${sp.md}px`, display: 'flex', flexDirection: 'column', gap: sp.sm }}>
-
-      {/* 車型選擇 */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>選擇車型</div>
-      <div style={{ display: 'flex', gap: sp.xs }}>
-        {vehicleOptions.map(v => (
-          <div key={v.label} style={{ flex: 1, background: data.vehicleType === v.type ? '#E8F4FF' : colors.white, border: `2px solid ${data.vehicleType === v.type ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.md}px 4px`, textAlign: 'center' as const, cursor: 'pointer', display: 'flex', flexDirection: 'column' as const, alignItems: 'center' as const, gap: 4 }} onClick={() => setData(p => ({ ...p, vehicleType: v.type }))}>
-            <span style={{ fontSize: 28 }}>{v.icon}</span>
-            <div style={{ fontSize: 13, fontWeight: 700, color: data.vehicleType === v.type ? colors.primaryBlue : colors.darkGrey }}>{v.label}</div>
-            <div style={{ fontSize: 11, color: colors.textMuted }}>{v.sub}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* 叫車: 乘客人數 */}
-      {data.service === 'move' && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>乘客人數</div>
-          <div style={{ display: 'flex', gap: sp.xs, alignItems: 'center' }}>
-            {([1,2,3,4] as const).map(n => (
-              <div key={n} style={{ flex: 1, background: data.passengerCount === n ? colors.primaryBlue : colors.lightGrey, borderRadius: rd.md, padding: '8px 2px', textAlign: 'center', cursor: 'pointer', fontSize: 13, fontWeight: 800, color: data.passengerCount === n ? '#fff' : colors.darkGrey }} onClick={() => setData(p => ({ ...p, passengerCount: n }))}>{n}人</div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* 速遞: 货物大小 */}
-      {data.service === 'delivery' && (
-        <>
-          <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>货物大小</div>
-          <div style={{ display: 'flex', gap: sp.xs }}>
-            {([{ k: 'small', l: '📦小件' }, { k: 'medium', l: '🧳中件' }, { k: 'large', l: '🚢大件' }] as const).map(s => (
-              <div key={s.k} style={{ flex: 1, background: data.loadType === s.k ? '#E8F4FF' : colors.white, border: `2px solid ${data.loadType === s.k ? colors.primaryBlue : colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center' as const, justifyContent: 'center' as const }} onClick={() => setData(p => ({ ...p, loadType: s.k }))}>
-                {s.l}
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Notes */}
-      <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase' as const, letterSpacing: 0.5, marginTop: sp.xs }}>備注</div>
-      <textarea
-        style={{ width: '100%', minHeight: 72, border: `1.5px solid ${colors.lightGrey}`, borderRadius: rd.md, padding: `${sp.sm}px`, fontSize: 14, fontFamily: 'Inter, system-ui, sans-serif', color: colors.darkGrey, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, display: 'block' }}
-        placeholder="可填寫樓層、特殊货物等..."
-        value={notes}
-        maxLength={200}
-        onChange={e => { setNotes(e.target.value); setData(p => ({ ...p, notes: e.target.value })); }}
-      />
-      <div style={{ fontSize: 11, color: colors.textMuted, textAlign: 'right' }}>{notes.length}/200</div>
-
-      {/* Fare card */}
-      {fare ? (
-        <div style={{ background: '#F0F7FF', borderRadius: rd.lg, padding: sp.md, border: `1.5px solid ${colors.primaryBlue}22`, display: 'flex', flexDirection: 'column' as const, gap: sp.sm }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' as const }}>
-            <span style={{ fontSize: 12, color: colors.textMuted }}>{fare.distanceKm}km · 約{fare.estimatedMinutes}分鐘</span>
-            <div style={{ textAlign: 'right' as const }}>
-              <span style={{ fontSize: 11, color: colors.textMuted }}>估計總費</span>
-              <div style={{ fontSize: 28, fontWeight: 900, color: colors.primaryBlue, lineHeight: 1.1 }}>{formatFare(fare.total)}</div>
-            </div>
-          </div>
-          <div style={{ borderTop: `1px solid ${colors.lightGrey}`, paddingTop: sp.sm, marginTop: sp.sm, display: 'flex', flexDirection: 'column' as const, gap: 2 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: colors.textSecondary }}>起步價</span><span style={{ fontWeight: 600 }}>{formatFare(fare.baseFare)}</span></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: colors.textSecondary }}>里程費</span><span style={{ fontWeight: 600 }}>{formatFare(fare.distanceFare)}</span></div>
-            {fare.speedSurcharge > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}><span style={{ color: colors.textSecondary }}>速度附加</span><span style={{ color: colors.orange, fontWeight: 600 }}>+{formatFare(fare.speedSurcharge)}</span></div>}
-          </div>
-        </div>
-      ) : (
-        <div style={{ textAlign: 'center', color: colors.textMuted, fontSize: 13, padding: sp.md }}>
-          選擇車型以計算車費
-        </div>
-      )}
-
-      {/* Back */}
-      <button style={{ background: 'none', border: 'none', fontSize: 12, color: colors.textMuted, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 0' }} onClick={onBack}>
-        ← 返回上一步
-      </button>
-
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: sp.sm, paddingBottom: 'max(8px, env(safe-area-inset-bottom))' }}>
-        <button style={{ flex: '0 0 auto', background: colors.white, color: colors.primaryBlue, border: `2px solid ${colors.primaryBlue}`, borderRadius: rd.lg, padding: `${sp.md}px ${sp.lg}px`, fontSize: 15, fontWeight: 700, cursor: 'pointer' }} onClick={onBack}>← 返回</button>
-        <button style={{ flex: 1, background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: 'pointer' }} onClick={onPublish}>確認發佈 ✓</button>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main HomePage ─────────────────────────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { openMenu } = useSideMenu();
-  const [data, setData] = useState<SheetData>(DEFAULT_DATA);
-  const [panelFlow, setPanelFlow] = useState<PanelFlow>('closed');
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [publishSuccess, setPublishSuccess] = useState(false);
-
-  const fare = useMemo(() => {
-    if (!data.pickupCoord || !data.dropoffCoord) return null;
-    return calculateFare({
-      pickupCoord: data.pickupCoord,
-      dropoffCoord: data.dropoffCoord,
-      vehicleType: data.vehicleType,
-      speed: data.time === 'now' ? 'immediate' : data.time === '4hour' ? '4hour' : data.time === 'sameday' ? 'sameday' : 'scheduled',
-      scheduledTime: data.scheduledTime,
-      extraStops: data.extraStops.length,
-      loadSize: data.loadType ?? 'small',
-      loadWeight: (data.loadWeight === '10-50kg' ? 'medium' : data.loadWeight === '50kg+' ? 'heavy' : 'light') as 'light' | 'medium' | 'heavy',
-      hasInsurance: data.hasInsurance ?? false,
-      hasAssistant: data.hasAssistant ?? false,
-    });
-  }, [data.pickupCoord, data.dropoffCoord, data.vehicleType, data.time, data.scheduledTime, data.extraStops.length, data.loadType, data.loadWeight]);
-
-  const routeCoords = useMemo(() => {
-    if (!data.pickupCoord || !data.dropoffCoord) return [];
-    return generateRouteWaypoints(data.pickupCoord, data.dropoffCoord);
-  }, [data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
+  const [showBooking, setShowBooking] = useState(false);
+  const mapRef = useRef<google.maps.Map | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -595,268 +84,72 @@ export default function HomePage() {
     return () => sub();
   }, [user]);
 
-  const isHK = (lat: number, lng: number) => lat >= 22.1 && lat <= 22.6 && lng >= 113.8 && lng <= 114.5;
-  const handlePreviewRoute = async () => {
-    if (data.pickupCoord && data.dropoffCoord) {
-      const [plat, plng] = data.pickupCoord;
-      const [dlat, dlng] = data.dropoffCoord;
-      const crossBorder = isHK(plat, plng) !== isHK(dlat, dlng);
-      setData(p => ({ ...p, isCrossBorder: crossBorder }));
-      setPanelVh(MIN_PANEL);
-      setPanelFlow('step2');
-    }
-  };
-  const handleServiceSelect = () => {
-    setPanelVh(MIN_PANEL);
-    setPanelFlow('step3');
-  };
-
-  const handleStep2Back = () => setPanelFlow('step1');
-  const handleStep3Back = () => setPanelFlow('step2');
-
-  const handlePublish = async () => {
-    if (!user?.uid) return;
-    try {
-      await createBooking({
-        renterId: user.uid,
-        pickupAddress: data.pickup,
-        pickupLat: data.pickupCoord?.[0] ?? 0,
-        pickupLng: data.pickupCoord?.[1] ?? 0,
-        dropoffAddress: data.dropoff,
-        dropoffLat: data.dropoffCoord?.[0] ?? 0,
-        dropoffLng: data.dropoffCoord?.[1] ?? 0,
-        waypoints: data.extraStops.map((addr, i) => ({ address: addr, lat: data.extraStopsCoord[i]?.[0] ?? 0, lng: data.extraStopsCoord[i]?.[1] ?? 0 })),
-        vehicleTypeRequired: data.vehicleType,
-        pickupTime: data.time === 'now' ? new Date().toISOString() : (data.scheduledTime?.toISOString() ?? new Date().toISOString()),
-        loads: [{ type: data.loadType ?? 'small', count: 1 }],
-        totalLoadCount: 1,
-        loadDescription: '',
-        notes: data.notes ?? '',
-      });
-      setPublishSuccess(true);
-      setData(DEFAULT_DATA);
-      setPanelFlow('closed');
-      setTimeout(() => setPublishSuccess(false), 3000);
-    } catch (e) { console.error(e); }
-  };
-
-  const handleMapClick = async (lat: number, lng: number) => {
-    if (panelFlow === 'step1') {
-      const addr = await reverseGeocode(lat, lng);
-      if (!data.pickupCoord) setData(p => ({ ...p, pickupCoord: [lat, lng], pickup: addr }));
-      else if (!data.dropoffCoord) setData(p => ({ ...p, dropoffCoord: [lat, lng], dropoff: addr }));
-      else setData(p => ({ ...p, extraStops: [...p.extraStops, addr], extraStopsCoord: [...p.extraStopsCoord, [lat, lng]] }));
-    }
-  };
-
-  const hs = {
-    page: { position: 'relative' as const, width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column' as const, fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden' as const },
-    topBar: { position: 'absolute' as const, top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `${sp.sm}px ${sp.md}px`, background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 100%)' },
-    menuBtn: { background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' },
-    logo: { fontSize: 18, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)' },
-    mapWrap: { flex: 1, position: 'relative' as const },
-    panelWrap: { position: 'absolute' as const, bottom: 0, left: 0, right: 0, background: colors.white, borderRadius: '28px 28px 0 0', boxShadow: '0 -4px 20px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' as const, overflow: 'hidden' as const, zIndex: 260 },
-    panelContent: { overflowY: 'auto' as const, flex: 1, minHeight: 0, overscrollBehavior: 'contain' as const },
-    serviceTabRow: { display: 'flex', background: colors.lightGrey, borderRadius: rd.lg, padding: 4, gap: 4 },
-    serviceTab: { flex: 1, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 13, fontWeight: 600, color: colors.darkGrey, borderRadius: rd.md, cursor: 'pointer' },
-    serviceTabActive: { flex: 1, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 13, fontWeight: 700, color: colors.darkGrey, background: colors.primaryBlue, borderRadius: rd.md, boxShadow: '0 1px 4px rgba(0,0,0,0.1)' },
-    serviceTabDisabled: { flex: 1, padding: `${sp.sm}px`, textAlign: 'center' as const, fontSize: 13, fontWeight: 500, color: colors.lightGrey, cursor: 'not-allowed' as const },
-    comingSoon: { fontSize: 9, background: colors.lightGrey, borderRadius: 3, padding: '1px 4px', marginLeft: 4 },
-    successToast: { position: 'absolute' as const, top: 80, left: '50%', transform: 'translateX(-50%)', background: '#22C55E', color: '#fff', padding: `${sp.sm}px ${sp.lg}px`, borderRadius: '9999px', fontSize: 14, fontWeight: 700, boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 200 },
-  };
-
-  // ─── Drawer height control (draggable) ───────────────────────────────────
-  const MIN_PANEL = 50;  // 50dvh collapsed
-  const MAX_PANEL = 85;  // 85dvh expanded
-  const [panelVh, setPanelVh] = useState(MIN_PANEL);
-  const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
-
-  // touch/mouse drag to resize
-  const onPointerDown = (e: React.PointerEvent) => {
-    dragRef.current = { startY: e.clientY, startVh: panelVh };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragRef.current) return;
-    const dy = dragRef.current.startY - e.clientY;
-    const dvh = (dy / window.innerHeight) * 100;
-    setPanelVh(Math.max(MIN_PANEL, Math.min(MAX_PANEL, dragRef.current.startVh + dvh)));
-  };
-  const onPointerUp = () => { dragRef.current = null; };
-  const togglePanel = () => setPanelVh(v => v < MAX_PANEL ? MAX_PANEL : MIN_PANEL);
-  const isCollapsed = panelVh <= MIN_PANEL;
-  const handleMapToggle = () => { if (panelFlow !== 'closed') togglePanel(); };
-
   return (
-    <div style={hs.page}>
+    <div style={{ position: 'relative', width: '100%', height: '100dvh', display: 'flex', flexDirection: 'column' }}>
       {/* Top bar */}
-      <div style={hs.topBar}>
-        <button style={hs.menuBtn} onClick={openMenu}>☰</button>
-        <span style={hs.logo}>OpenVans</span>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, right: 0, zIndex: 100,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: `${sp.sm}px ${sp.md}px`,
+        background: 'linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 100%)',
+      }}>
+        <button style={{
+          background: 'rgba(255,255,255,0.9)', border: 'none', borderRadius: '50%',
+          width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', fontSize: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+        }} onClick={openMenu}>☰</button>
+        <span style={{ fontSize: 18, fontWeight: 900, color: '#fff', textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>OpenVans</span>
         <div style={{ width: 40 }} />
       </div>
 
       {/* Map */}
-      <div style={hs.mapWrap} onClick={handleMapToggle}>
-        <GoogleMapWrapper
+      <div style={{ flex: 1, position: 'relative' }}>
+        <GoogleMap
+          id="home-map"
+          mapContainerStyle={{ width: '100%', height: '100%' }}
           center={HK_CENTER}
           zoom={12}
-          pickupCoord={data.pickupCoord}
-          dropoffCoord={data.dropoffCoord}
-          routeCoords={routeCoords}
-          bookings={bookings}
-          clickMode={panelFlow !== 'closed'}
-          extraStopMarkers={data.extraStopsCoord}
-          onMapClick={handleMapClick}
-          onMarkerClick={(id: string) => navigate(`/trips/${id}`)}
-        />
-        {publishSuccess && <div style={hs.successToast}>✅ 訂單已發佈！</div>}
-      </div>
-
-      {/* Floating expand button when drawer is collapsed */}
-      {panelFlow !== 'closed' && isCollapsed && (
-        <button
-          onClick={togglePanel}
-          style={{
-            position: 'absolute',
-            bottom: 12,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: colors.primaryBlue,
-            color: colors.darkGrey,
-            border: 'none',
-            borderRadius: 20,
-            padding: '10px 20px',
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: 'pointer',
-            boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-            zIndex: 270,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            whiteSpace: 'nowrap',
+          onLoad={node => { mapRef.current = node; }}
+          options={{ styles: MAP_STYLE, disableDefaultUI: true, zoomControl: true }}
+          onClick={() => {
+            // Map clicks are handled by the drawer when open
           }}
         >
-          📋 查看行程 ▲
-        </button>
+          {bookings.map(b => b.pickupLat && b.pickupLng && (
+            <Marker key={b.id} position={{ lat: b.pickupLat, lng: b.pickupLng }} onClick={() => navigate(`/trips/${b.id}`)} />
+          ))}
+        </GoogleMap>
+      </div>
+
+      {/* Floating CTA */}
+      <button
+        onClick={() => setShowBooking(true)}
+        style={{
+          position: 'absolute',
+          bottom: 28,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: colors.primaryBlue,
+          color: '#fff',
+          border: 'none',
+          borderRadius: 28,
+          padding: '16px 36px',
+          fontSize: 17,
+          fontWeight: 800,
+          cursor: 'pointer',
+          boxShadow: '0 6px 24px rgba(0,0,0,0.25)',
+          zIndex: 270,
+          letterSpacing: 0.5,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        速遞 / 叫車 →
+      </button>
+
+      {/* Booking Drawer */}
+      {showBooking && (
+        <BookingDrawer onClose={() => setShowBooking(false)} />
       )}
-
-      {/* Bottom panel — step flow */}
-      <div
-        style={{
-          ...hs.panelWrap,
-          display: panelFlow !== 'closed' ? 'flex' : 'none',
-          flexDirection: 'column',
-          height: `${panelVh}dvh`,
-          transition: dragRef.current ? 'none' : 'height 0.2s ease',
-          maxHeight: `${panelVh}dvh`,
-        }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      >
-        {/* ── Drawer toggle strip (full-width, obvious) ── */}
-        <div
-          onClick={togglePanel}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: 52,
-            cursor: 'pointer',
-            flexShrink: 0,
-            userSelect: 'none',
-            borderBottom: `1px solid ${colors.lightGrey}`,
-            background: '#FAFAFA',
-          }}
-        >
-          <div style={{
-            width: 52, height: 7, background: '#CBD5E1', borderRadius: 4,
-            marginRight: 14,
-            flexShrink: 0,
-          }} />
-          <span style={{
-            fontSize: 15, fontWeight: 800,
-            color: colors.darkGrey,
-            letterSpacing: 0.3,
-          }}>
-            {isCollapsed ? '▲ 展開行程' : '▼ 收起'}
-          </span>
-        </div>
-        <StepIndicator currentStep={panelFlow === 'step1' ? 1 : panelFlow === 'step2' ? 2 : 3} />
-        <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
-          {panelFlow === 'step1' && <Step1Form data={data} setData={setData} onPreview={handlePreviewRoute} />}
-          {panelFlow === 'step2' && <Step2Form data={data} setData={setData} fare={fare} onBackToStep1={handleStep2Back} onServiceSelect={handleServiceSelect} />}
-          {panelFlow === 'step3' && <Step3Form data={data} setData={setData} fare={fare} onBack={handleStep3Back} onPublish={handlePublish} />}
-        </div>
-      </div>
-
-      {/* Service tab panel (when closed) */}
-      <div
-        style={{
-          ...hs.panelWrap,
-          display: panelFlow === 'closed' ? 'flex' : 'none',
-          flexDirection: 'column',
-          height: `${panelVh}dvh`,
-          transition: 'height 0.2s ease',
-          maxHeight: `${panelVh}dvh`,
-        }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-      >
-        {/* ── Drawer toggle strip (full-width, obvious) ── */}
-        <div
-          onClick={togglePanel}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: 52,
-            cursor: 'pointer',
-            flexShrink: 0,
-            userSelect: 'none',
-            borderBottom: `1px solid ${colors.lightGrey}`,
-            background: '#FAFAFA',
-          }}
-        >
-          <div style={{
-            width: 52, height: 7, background: '#CBD5E1', borderRadius: 4,
-            marginRight: 14,
-            flexShrink: 0,
-          }} />
-          <span style={{
-            fontSize: 15, fontWeight: 800,
-            color: colors.darkGrey,
-            letterSpacing: 0.3,
-          }}>
-            {isCollapsed ? '▲ 展開行程' : '▼ 收起'}
-          </span>
-        </div>
-        <div style={{ ...hs.panelContent, overflowY: 'auto', flex: 1, minHeight: 0, overscrollBehavior: 'contain' }}>
-          <div style={{ padding: `${sp.sm}px ${sp.md}px` }}>
-            <div style={hs.serviceTabRow}>
-              {SERVICE_TABS.map(tab => (
-                <div key={tab.key} style={{ ...(data.service === tab.key ? hs.serviceTabActive : hs.serviceTab), display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }} onClick={() => setData(p => ({ ...p, service: tab.key }))}>
-                  <span style={{ fontSize: 16 }}>{tab.emoji}</span>
-                  <span>{tab.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={{ padding: `0 ${sp.md}px ${sp.md}px` }}>
-            <div style={{ background: colors.lightGrey, borderRadius: rd.lg, padding: sp.lg, textAlign: 'center', color: colors.darkGrey }}>
-              <div style={{ fontSize: 32, marginBottom: sp.sm }}>📦</div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: colors.darkGrey, marginBottom: sp.xs }}>隨時隨地托運</div>
-              <div style={{ fontSize: 13 }}>選擇服務然後輸入地址</div>
-            </div>
-            <button style={{ width: '100%', background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: rd.lg, padding: `${sp.md}px`, fontSize: 16, fontWeight: 700, cursor: 'pointer', marginTop: sp.md }} onClick={() => setPanelFlow('step1')}>
-              開始用車 🚐
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
