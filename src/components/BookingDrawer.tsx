@@ -202,20 +202,35 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   }, [data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
 
   // Pan map to a single coordinate with smooth animation
+  // Account for drawer covering bottom ~55% of screen, so center slightly above middle
   const panToCoord = useCallback((coord: [number, number]) => {
     if (!mapRef.current) return;
-    mapRef.current.panTo({ lat: coord[0], lng: coord[1] });
-    mapRef.current.setZoom(15);
+    const point = mapRef.current.getProjection()?.fromLatLngToPoint({ lat: coord[0], lng: coord[1] });
+    if (point) {
+      // Offset: shift point up by ~25% of screen height so it sits above the drawer
+      const screenH = window.innerHeight;
+      const offsetPx = -screenH * 0.18;
+      const newCenter = mapRef.current.getProjection()?.fromPointToLatLng(
+        new google.maps.Point(point.x, point.y + offsetPx)
+      );
+      if (newCenter) mapRef.current.panTo(newCenter);
+      else mapRef.current.panTo({ lat: coord[0], lng: coord[1] });
+    } else {
+      mapRef.current.panTo({ lat: coord[0], lng: coord[1] });
+    }
+    mapRef.current.setZoom(14);
   }, []);
 
   // Map fit when route changes — show all waypoints with animation
+  // Account for drawer covering bottom ~55% of screen
   useEffect(() => {
     if (!mapRef.current || !data.pickupCoord || !data.dropoffCoord || routeCoords.length < 2) return;
     const bounds = new google.maps.LatLngBounds();
     bounds.extend({ lat: data.pickupCoord[0], lng: data.pickupCoord[1] });
     bounds.extend({ lat: data.dropoffCoord[0], lng: data.dropoffCoord[1] });
     data.extraStopsCoord.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
-    mapRef.current.fitBounds(bounds, { top: 80, bottom: 360, left: 20, right: 20 });
+    // top=80 for header, bottom=600 for drawer (55% of ~812px phone height)
+    mapRef.current.fitBounds(bounds, { top: 80, bottom: 600, left: 20, right: 20 });
   }, [routeCoords, data.pickupCoord, data.dropoffCoord, data.extraStopsCoord]);
 
   // ─── Vehicle options by service ──────────────────────────────────────────
