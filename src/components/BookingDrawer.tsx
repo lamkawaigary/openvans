@@ -84,7 +84,6 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
   const [query, setQuery] = useState(value);
   const [results, setResults] = useState<PlaceSuggestion[]>([]);
   const [showResults, setShowResults] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -108,13 +107,11 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
     onChange(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (v.length < 3) { setResults([]); setLoading(false); return; }
-      setLoading(true);
+      if (v.length < 3) { setResults([]); return; }
       const suggestions = await getPlaceSuggestions(v);
       setResults(suggestions);
       setShowResults(suggestions.length > 0 && isFocused);
-      setLoading(false);
-    }, 300);
+    }, 200);
   };
 
   const handleSelect = (suggestion: PlaceSuggestion) => {
@@ -145,9 +142,8 @@ function AddressInput({ value, onChange, onSelect, placeholder, borderColor }: {
         value={query}
         onChange={e => handleChange(e.target.value)}
         onFocus={() => { setIsFocused(true); if (results.length > 0) setShowResults(true); }}
-        onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 400); }}
+        onBlur={() => { setIsFocused(false); setTimeout(() => setShowResults(false), 150); }}
       />
-      {loading && <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: colors.textMuted }}>...</span>}
       {results.length > 0 && showResults && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0,
