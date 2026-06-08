@@ -19,7 +19,6 @@ service cloud.firestore {
     // ─── Users ─────────────────────────────────────────────────────────────
     match /users/{userId} {
       allow read: if true;
-      // Users can only write their own profile (unless admin)
       allow write: if isOwner(userId) || isAdmin();
     }
 
@@ -70,6 +69,12 @@ service cloud.firestore {
                     && resource.data.ownerId == request.auth.uid
                     && request.resource.data.status in ['in_progress', 'completed']
                     && resource.data.status in ['confirmed', 'in_progress'];
+    }
+
+    // ─── Config ────────────────────────────────────────────────────────────
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ─── Notifications ─────────────────────────────────────────────────────

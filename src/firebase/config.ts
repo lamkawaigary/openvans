@@ -3,25 +3,38 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
-// Your OpenVans Firebase configuration
-export const GOOGLE_MAPS_API_KEY = "AIzaSyAV0l3Tx3Z3DAYWExyf3Y_H1yktPkZCHdg";
-
+// ─── Environment Variables ─────────────────────────────────────────────────────
+// Read from Vite environment variables (VITE_* prefix required)
+// Fall back to empty string for local dev (set in .env.local)
 const firebaseConfig = {
-  apiKey: "AIzaSyAV0l3Tx3Z3DAYWExyf3Y_H1yktPkZCHdg",
-  authDomain: "openvans.firebaseapp.com",
-  projectId: "openvans",
-  storageBucket: "openvans.firebasestorage.app",
-  messagingSenderId: "547677087724",
-  appId: "1:547677087724:web:e8b8f201b0c7eb412582c9",
-  measurementId: "G-WNHJ65RKN9"
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY            || "",
+  authDomain:         import.meta.env.VITE_FIREBASE_AUTH_DOMAIN         || "",
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID           || "",
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET       || "",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "",
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID               || "",
+  measurementId:     import.meta.env.VITE_FIREBASE_MEASUREMENT_ID       || "",
 };
+
+export const GOOGLE_MAPS_API_KEY =
+  import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "";
+
+// Validate required config
+const required = ["apiKey", "projectId", "authDomain", "appId"];
+const missing = required.filter(k => !firebaseConfig[k as keyof typeof firebaseConfig]);
+if (missing.length > 0) {
+  console.warn(
+    `[OpenVans] Firebase config missing required fields: ${missing.join(", ")}`,
+    "Set them in .env.local or Vercel Environment Variables."
+  );
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 // Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+export const db   = getFirestore(app);
 export const storage = getStorage(app);
 
 export default app;

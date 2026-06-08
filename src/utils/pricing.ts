@@ -1,5 +1,6 @@
 import type { VehicleType, TunnelType, DeliverySpeed, FareBreakdown } from '../types';
 import { GOOGLE_MAPS_API_KEY } from '../firebase/config';
+import { getTimeMultiplier, isWeekend, isHongKongHoliday, calculateRouteTollCost } from './tollConfig';
 
 // ─── Vehicle type base fares (HK$) ─────────────────────────────────────
 const BASE_FARES: Record<VehicleType, number> = {
@@ -38,15 +39,6 @@ const SPEED_MULTIPLIERS: Record<DeliverySpeed, number> = {
   sameday: 0.9,     // 即日：9折
   scheduled: 0.85,  // 預約：85折
 };
-
-// Peak hours 峰時
-const PEAK_MORNING = { start: 7, end: 9 };
-const PEAK_EVENING = { start: 17, end: 20 };
-const LATE_NIGHT_START = 23;
-const LATE_NIGHT_END = 6;
-
-// ─── Tunnel fees ──────────────────────────────────────────────────────────
-const TUNNEL_FEE_PER = 30; // HK$ per tunnel crossing
 
 // ─── Stair fee ───────────────────────────────────────────────────────────
 const STAIR_FEE_PER_FLOOR = 20; // HK$ per floor
@@ -141,6 +133,7 @@ export async function getRouteInfo(
 
 /**
  * Calculate fare with full breakdown (uses Haversine for distance if Directions fails)
+ * 支援香港隧道/橋樑收費、時段調整、週末/假日附加費
  */
 export function calculateFare(params: {
   pickupCoord: [number, number];
@@ -153,7 +146,8 @@ export function calculateFare(params: {
   loadWeight: 'light' | 'medium' | 'heavy';
   hasInsurance: boolean;
   hasAssistant: boolean;
-  tunnelsCrossed?: TunnelType[];
+  // 隧道/橋樑 ID 列表（來自 tollConfig.ts）
+  tollIds?: string[];
   parkingFee?: number;
   stairFloors?: number;
   // Pre-fetched route (optional - if not provided, uses Haversine)
@@ -163,7 +157,7 @@ export function calculateFare(params: {
   const {
     vehicleType, speed, scheduledTime, extraStops,
     loadSize, loadWeight, hasInsurance, hasAssistant,
-    tunnelsCrossed = [], parkingFee = 0, stairFloors = 0,
+    tollIds = [], parkingFee = 0, stairFloors = 0,
     routeDistanceKm, routeDurationMinutes,
   } = params;
 
@@ -182,20 +176,21 @@ export function calculateFare(params: {
   const speedMultiplier = SPEED_MULTIPLIERS[speed] || 1.0;
   const speedSurcharge = Math.round((baseFare + distanceFare) * (speedMultiplier - 1));
 
-  // Peak / Late-night (on base + distance + speed surcharge)
-  let peakSurge = 0;
-  let lateNightSurge = 0;
-  const surchargeBase = baseFare + distanceFare + speedSurcharge;
-  if (isLateNight(effectiveDate)) {
-    lateNightSurge = Math.round(surchargeBase * 0.20);
-  } else if (isPeakHour(effectiveDate)) {
-    peakSurge = Math.round(surchargeBase * 0.15);
+  // Time-based surcharge (using new tollConfig)
+  const timeMultiplier = getTimeMultiplier(effectiveDate);
+  let timeSurcharge = 0;
+  if (timeMultiplier > 1.0) {
+    const surchargeBase = baseFare + distanceFare + speedSurcharge;
+    timeSurcharge = Math.round(surchargeBase * (timeMultiplier - 1));
   }
 
-  // Weekend
-  const weekendSurge = isWeekend(effectiveDate)
-    ? Math.round((baseFare + distanceFare) * 0.08)
-    : 0;
+  // Weekend / Holiday surcharge (using new tollConfig)
+  let weekendHolidaySurcharge = 0;
+  if (isHongKongHoliday(effectiveDate)) {
+    weekendHolidaySurcharge = Math.round((baseFare + distanceFare) * 0.25);
+  } else if (isWeekend(effectiveDate)) {
+    weekendHolidaySurcharge = Math.round((baseFare + distanceFare) * 0.10);
+  }
 
   // Extra stops
   const extraStopFare = extraStops * 20;
@@ -210,8 +205,8 @@ export function calculateFare(params: {
   // Assistant
   const assistantFare = hasAssistant ? 30 : 0;
 
-  // Tunnel fee
-  const tunnelFare = tunnelsCrossed.length * TUNNEL_FEE_PER;
+  // Tunnel/Bridge fees (using new tollConfig with real HK toll data)
+  const tunnelFare = calculateRouteTollCost(tollIds, vehicleType, effectiveDate);
 
   // Parking fee (driver-claimed)
   const parkingFare = parkingFee;
@@ -222,7 +217,7 @@ export function calculateFare(params: {
   // Subtotal before minimum check
   const subtotal = (
     baseFare + distanceFare + speedSurcharge +
-    peakSurge + lateNightSurge + weekendSurge +
+    timeSurcharge + weekendHolidaySurcharge +
     extraStopFare + loadSurcharge + insuranceFare + assistantFare +
     tunnelFare + parkingFare + stairFare
   );
@@ -234,9 +229,9 @@ export function calculateFare(params: {
     baseFare,
     distanceFare,
     speedSurcharge,
-    peakSurge,
-    lateNightSurge,
-    weekendSurge,
+    peakSurge: timeSurcharge, // 保留欄位兼容性
+    lateNightSurge: 0,
+    weekendSurge: weekendHolidaySurcharge,
     extraStopFare,
     loadSurcharge,
     insuranceFare,
@@ -250,7 +245,7 @@ export function calculateFare(params: {
     distanceMeters: Math.round(distanceKm * 1000),
     estimatedMinutes: routeDurationMinutes ?? estimateMinutes(distanceKm, extraStops),
     minimumFare,
-    tollsReserved: 0,
+    tollsReserved: tunnelFare, // 預留隧道費用
   };
 }
 
@@ -259,23 +254,9 @@ export const calculateVanFare = calculateFare;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
-function isPeakHour(date: Date): boolean {
-  const h = date.getHours();
-  return (
-    (h >= PEAK_MORNING.start && h < PEAK_MORNING.end) ||
-    (h >= PEAK_EVENING.start && h < PEAK_EVENING.end)
-  );
-}
-
-function isLateNight(date: Date): boolean {
-  const h = date.getHours();
-  return h >= LATE_NIGHT_START || h < LATE_NIGHT_END;
-}
-
-function isWeekend(date: Date): boolean {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-}
+// Re-export toll helpers for external use
+export { HK_TOLL_CONFIGS, getTollFee, getTimeMultiplier, isWeekend, isHongKongHoliday, calculateRouteTollCost, getAvailableTolls, getTimeSlotName } from './tollConfig';
+export { DEFAULT_TUNNEL_ROUTES } from './tollConfig';
 
 // Haversine (km) - fallback when Directions API unavailable
 export function haversineKm(coord1: [number, number], coord2: [number, number]): number {

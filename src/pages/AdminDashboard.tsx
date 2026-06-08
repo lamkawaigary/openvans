@@ -4,6 +4,14 @@ import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { Booking, BookingStatus, Van, User } from '../types';
 import { colors, sp, rd } from '../styles';
+import {
+  HK_TOLL_CONFIGS,
+  DEFAULT_TUNNEL_ROUTES,
+  type TollConfig,
+} from '../utils/tollConfig';
+
+// ─── Tab Types ────────────────────────────────────────────────────────────
+type TabType = 'overview' | 'bookings' | 'users' | 'vans' | 'billing' | 'tolls';
 
 // ─── Stat Card ───────────────────────────────────────────────────────────
 interface StatCardProps {
@@ -41,6 +49,54 @@ function StatusBadge({ status }: { status: BookingStatus }) {
   );
 }
 
+// ─── Billing Config Interface ────────────────────────────────────────────
+interface BillingConfig {
+  platformFeePercent: number;
+  paymentProcessingFeePercent: number;
+  minimumFares: Record<string, number>;
+  perKmRates: Record<string, number>;
+  surcharges: Record<string, number>;
+  defaultTunnelFee: number;
+  defaultBridgeFee: number;
+  stairFeePerFloor: number;
+  insuranceFee: number;
+  assistantFee: number;
+  extraStopFee: number;
+}
+
+const defaultBillingConfig: BillingConfig = {
+  platformFeePercent: 15,
+  paymentProcessingFeePercent: 2.5,
+  minimumFares: {
+    motorcycle: 25,
+    light: 50,
+    truck_5_5t: 90,
+    truck_9_5t: 130,
+    sedan: 45,
+    van_7: 65,
+  },
+  perKmRates: {
+    motorcycle: 2.5,
+    light: 4.0,
+    truck_5_5t: 6.0,
+    truck_9_5t: 8.5,
+    sedan: 3.5,
+    van_7: 4.5,
+  },
+  surcharges: {
+    immediate: 1.3,
+    '4hour': 1.0,
+    sameday: 0.9,
+    scheduled: 0.85,
+  },
+  defaultTunnelFee: 30,
+  defaultBridgeFee: 25,
+  stairFeePerFloor: 20,
+  insuranceFee: 20,
+  assistantFee: 30,
+  extraStopFee: 20,
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -49,7 +105,16 @@ export default function AdminDashboard() {
   const [users, setUsers] = useState<User[]>([]);
   const [vans, setVans] = useState<Van[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'users' | 'vans'>('overview');
+  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  
+  // Billing config state
+  const [billingConfig, setBillingConfig] = useState<BillingConfig>(defaultBillingConfig);
+  const [editingBilling, setEditingBilling] = useState(false);
+  
+  // Toll config state
+  const [tollConfigs, setTollConfigs] = useState<Record<string, TollConfig>>(HK_TOLL_CONFIGS);
+  const [editingToll, setEditingToll] = useState<string | null>(null);
+  const [newTollFee, setNewTollFee] = useState<number>(0);
 
   useEffect(() => {
     loadData();
@@ -86,13 +151,20 @@ export default function AdminDashboard() {
   const inProgress = bookings.filter(b => b.status === 'in_progress');
   const completedToday = bookings.filter(b => b.status === 'completed' && b.completedAt && new Date(b.completedAt).toDateString() === today);
   const revenueToday = completedToday.reduce((sum, b) => sum + (b.finalPrice || b.estimatedPrice || 0), 0);
+  const totalRevenue = bookings.filter(b => b.status === 'completed').reduce((sum, b) => sum + (b.finalPrice || b.estimatedPrice || 0), 0);
 
-  const tabs = [
+  // ── Toll Stats ──
+  const activeTolls = Object.values(tollConfigs).filter(t => t.active);
+  const totalTollRevenue = bookings.reduce((sum, b) => sum + (b.fareBreakdown?.tunnelFare || 0), 0);
+
+  const tabs: { key: TabType; label: string }[] = [
     { key: 'overview', label: '📊 總覽' },
     { key: 'bookings', label: '📋 訂單' },
     { key: 'users', label: '👥 用戶' },
     { key: 'vans', label: '🚐 車輛' },
-  ] as const;
+    { key: 'billing', label: '💰 計費' },
+    { key: 'tolls', label: '🚇 隧道' },
+  ];
 
   return (
     <div style={page}>
@@ -139,6 +211,13 @@ export default function AdminDashboard() {
                 <StatCard label="今日收入" value={`HK$${revenueToday}`} sub={`完成 ${completedToday.length} 單`} color="#6b21a8" />
               </div>
 
+              <div style={{ ...statsGrid, marginTop: sp.md }}>
+                <StatCard label="總收入" value={`HK$${totalRevenue}`} sub={`共 ${bookings.filter(b => b.status === 'completed').length} 單完成`} color="#065f46" />
+                <StatCard label="隧道收入" value={`HK$${totalTollRevenue}`} sub={`共 ${activeTolls.length} 個隧道選項`} color="#b45309" />
+                <StatCard label="總用戶" value={users.length} sub={`活躍 ${users.filter(u => u.isActive).length}`} color="#1d4ed8" />
+                <StatCard label="總車輛" value={vans.length} sub={`可用 ${vans.filter(v => v.isAvailable).length}`} color="#6b21a8" />
+              </div>
+
               <h2 style={{ ...sectionTitle, marginTop: sp.xl }}>最近待處理訂單</h2>
               {pending.length === 0 ? (
                 <div style={emptyState}>✅ 暫無待處理訂單</div>
@@ -176,6 +255,7 @@ export default function AdminDashboard() {
                       <div style={listItemTitle}>{b.pickupAddress} → {b.dropoffAddress}</div>
                       <div style={listItemSub}>
                         {b.vehicleTypeRequired} · {new Date(b.createdAt).toLocaleString('zh-HK')}
+                        {b.fareBreakdown?.tunnelFare ? ` · 隧道費: HK$${b.fareBreakdown.tunnelFare}` : ''}
                       </div>
                     </div>
                     <div style={listItemRight}>
@@ -211,7 +291,7 @@ export default function AdminDashboard() {
                         color: u.role === 'owner' ? '#065f46' : '#1d4ed8',
                         background: u.role === 'owner' ? '#d1fae5' : '#dbeafe',
                       }}>
-                        {u.role === 'owner' ? '🚚 司機' : '👤 乘客'}
+                        {u.role === 'owner' ? '🚚 司機' : u.role === 'admin' ? '👑 管理員' : '👤 乘客'}
                       </span>
                       <span style={{
                         ...badge,
@@ -268,6 +348,287 @@ export default function AdminDashboard() {
               </div>
             </div>
           )}
+
+          {/* ── BILLING ── */}
+          {activeTab === 'billing' && (
+            <div style={section}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: sp.md }}>
+                <h2 style={{ ...sectionTitle, marginTop: 0 }}>計費配置</h2>
+                <button
+                  style={editBtn}
+                  onClick={() => setEditingBilling(!editingBilling)}
+                >
+                  {editingBilling ? '完成編輯' : '編輯'}
+                </button>
+              </div>
+
+              {/* Platform Fees */}
+              <div style={configCard}>
+                <h3 style={configTitle}>平台費用</h3>
+                <div style={configRow}>
+                  <span style={configLabel}>平台服務費 (%)</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.platformFeePercent}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, platformFeePercent: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>{billingConfig.platformFeePercent}%</span>
+                  )}
+                </div>
+                <div style={configRow}>
+                  <span style={configLabel}>支付處理費 (%)</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.paymentProcessingFeePercent}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, paymentProcessingFeePercent: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>{billingConfig.paymentProcessingFeePercent}%</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Base Fares by Vehicle Type */}
+              <div style={configCard}>
+                <h3 style={configTitle}>各車型最低收費 (HK$)</h3>
+                {Object.entries(billingConfig.minimumFares).map(([type, fare]) => (
+                  <div key={type} style={configRow}>
+                    <span style={configLabel}>{type}</span>
+                    {editingBilling ? (
+                      <input
+                        type="number"
+                        style={configInput}
+                        value={fare}
+                        onChange={(e) => setBillingConfig({
+                          ...billingConfig,
+                          minimumFares: { ...billingConfig.minimumFares, [type]: Number(e.target.value) }
+                        })}
+                      />
+                    ) : (
+                      <span style={configValue}>HK${fare}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Per-km Rates */}
+              <div style={configCard}>
+                <h3 style={configTitle}>每公里收費率 (HK$)</h3>
+                {Object.entries(billingConfig.perKmRates).map(([type, rate]) => (
+                  <div key={type} style={configRow}>
+                    <span style={configLabel}>{type}</span>
+                    {editingBilling ? (
+                      <input
+                        type="number"
+                        step="0.1"
+                        style={configInput}
+                        value={rate}
+                        onChange={(e) => setBillingConfig({
+                          ...billingConfig,
+                          perKmRates: { ...billingConfig.perKmRates, [type]: Number(e.target.value) }
+                        })}
+                      />
+                    ) : (
+                      <span style={configValue}>HK${rate}/km</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Speed Surcharges */}
+              <div style={configCard}>
+                <h3 style={configTitle}>速度加乘</h3>
+                {Object.entries(billingConfig.surcharges).map(([speed, mult]) => (
+                  <div key={speed} style={configRow}>
+                    <span style={configLabel}>{speed === 'immediate' ? '即時' : speed === '4hour' ? '4小時' : speed === 'sameday' ? '同日' : '預約'}</span>
+                    {editingBilling ? (
+                      <input
+                        type="number"
+                        step="0.05"
+                        style={configInput}
+                        value={mult}
+                        onChange={(e) => setBillingConfig({
+                          ...billingConfig,
+                          surcharges: { ...billingConfig.surcharges, [speed]: Number(e.target.value) }
+                        })}
+                      />
+                    ) : (
+                      <span style={configValue}>{(mult * 100).toFixed(0)}%</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Additional Fees */}
+              <div style={configCard}>
+                <h3 style={configTitle}>附加費用</h3>
+                <div style={configRow}>
+                  <span style={configLabel}>樓梯費（每層）</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.stairFeePerFloor}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, stairFeePerFloor: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>HK${billingConfig.stairFeePerFloor}</span>
+                  )}
+                </div>
+                <div style={configRow}>
+                  <span style={configLabel}>保險費</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.insuranceFee}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, insuranceFee: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>HK${billingConfig.insuranceFee}</span>
+                  )}
+                </div>
+                <div style={configRow}>
+                  <span style={configLabel}>助手費</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.assistantFee}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, assistantFee: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>HK${billingConfig.assistantFee}</span>
+                  )}
+                </div>
+                <div style={configRow}>
+                  <span style={configLabel}>額外停靠站</span>
+                  {editingBilling ? (
+                    <input
+                      type="number"
+                      style={configInput}
+                      value={billingConfig.extraStopFee}
+                      onChange={(e) => setBillingConfig({ ...billingConfig, extraStopFee: Number(e.target.value) })}
+                    />
+                  ) : (
+                    <span style={configValue}>HK${billingConfig.extraStopFee}/站</span>
+                  )}
+                </div>
+              </div>
+
+              {editingBilling && (
+                <button style={saveBtn} onClick={() => {
+                  // TODO: Save to Firebase
+                  setEditingBilling(false);
+                  alert('計費配置已更新（待實現 Firebase 儲存）');
+                }}>
+                  儲存配置
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* ── TOLLS ── */}
+          {activeTab === 'tolls' && (
+            <div style={section}>
+              <h2 style={{ ...sectionTitle, marginTop: 0 }}>隧道及橋樑配置</h2>
+              
+              <div style={{ ...statsGrid, marginBottom: sp.lg }}>
+                <StatCard label="活躍隧道/橋樑" value={activeTolls.length} color="#b45309" />
+                <StatCard label="隧道總收入" value={`HK$${totalTollRevenue}`} color="#065f46" />
+              </div>
+
+              {/* Pre-defined Routes */}
+              <h3 style={configTitle}>預設路線</h3>
+              <div style={{ ...list, marginBottom: sp.lg }}>
+                {DEFAULT_TUNNEL_ROUTES.map(route => (
+                  <div key={route.id} style={listItem}>
+                    <div style={listItemLeft}>
+                      <div style={listItemTitle}>{route.name}</div>
+                      <div style={listItemSub}>{route.description}</div>
+                    </div>
+                    <div style={listItemRight}>
+                      <span style={{ ...badge, color: '#065f46', background: '#d1fae5' }}>
+                        HK${route.estimatedCost}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Individual Toll Configs */}
+              <h3 style={configTitle}>個別隧道/橋樑收費</h3>
+              {Object.values(tollConfigs).map(toll => (
+                <div key={toll.id} style={configCard}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{toll.name} ({toll.shortName})</div>
+                      <div style={{ fontSize: 12, color: colors.textMuted, marginTop: 2 }}>{toll.description}</div>
+                      <div style={{ marginTop: 4 }}>
+                        <span style={{
+                          ...badge,
+                          color: toll.type === 'tunnel' ? '#1d4ed8' : toll.type === 'bridge' ? '#065f46' : '#b45309',
+                          background: toll.type === 'tunnel' ? '#dbeafe' : toll.type === 'bridge' ? '#d1fae5' : '#fef3c7',
+                        }}>
+                          {toll.type === 'tunnel' ? '海底隧道' : toll.type === 'bridge' ? '橋樑' : '跨境'}
+                        </span>
+                        <span style={{
+                          ...badge,
+                          color: toll.active ? '#065f46' : '#991b1b',
+                          background: toll.active ? '#d1fae5' : '#fee2e2',
+                          marginLeft: 4,
+                        }}>
+                          {toll.active ? '✅ 啟用' : '❌ 停用'}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      {editingToll === toll.id ? (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <input
+                            type="number"
+                            style={{ ...configInput, width: 80 }}
+                            value={newTollFee}
+                            onChange={(e) => setNewTollFee(Number(e.target.value))}
+                          />
+                          <button style={smallBtn} onClick={() => {
+                            setTollConfigs({
+                              ...tollConfigs,
+                              [toll.id]: { ...toll, fee: newTollFee }
+                            });
+                            setEditingToll(null);
+                          }}>儲存</button>
+                          <button style={{ ...smallBtn, background: '#fee2e2', color: '#991b1b' }} onClick={() => setEditingToll(null)}>取消</button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                          <span style={{ fontSize: 20, fontWeight: 700, color: '#b45309' }}>HK${toll.fee}</span>
+                          <button style={smallBtn} onClick={() => {
+                            setEditingToll(toll.id);
+                            setNewTollFee(toll.fee);
+                          }}>編輯</button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  {toll.allowedVehicleTypes && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: colors.textMuted }}>
+                      適用車型：{toll.allowedVehicleTypes.join(', ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <button style={{ ...editBtn, marginTop: sp.md }} onClick={() => setEditingToll(editingToll ? null : 'new')}>
+                {editingToll === 'new' ? '取消新增' : '+ 新增隧道/橋樑'}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -290,19 +651,20 @@ const tabNav: React.CSSProperties = {
   position: 'sticky',
   top: 56,
   zIndex: 10,
+  overflowX: 'auto',
 };
 
 const tabBtn: React.CSSProperties = {
-  flex: 1,
   padding: `${sp.sm}px ${sp.xs}px`,
   border: 'none',
   background: 'transparent',
-  fontSize: 13,
+  fontSize: 12,
   fontWeight: 600,
   color: colors.textMuted,
   cursor: 'pointer',
   borderRadius: rd.sm,
   transition: 'all 0.2s',
+  whiteSpace: 'nowrap',
 };
 
 const tabBtnActive: React.CSSProperties = {
@@ -459,4 +821,83 @@ const closeBtn: React.CSSProperties = {
   alignItems: 'center',
   justifyContent: 'center',
   borderRadius: rd.sm,
+};
+
+// Billing Config Styles
+const configCard: React.CSSProperties = {
+  background: '#fff',
+  borderRadius: rd.md,
+  padding: sp.md,
+  marginBottom: sp.md,
+  boxShadow: colors.shadowSm,
+};
+
+const configTitle: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: colors.darkGrey,
+  marginBottom: sp.sm,
+};
+
+const configRow: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  padding: `${sp.xs}px 0`,
+  borderBottom: `1px solid ${colors.lightGrey}`,
+};
+
+const configLabel: React.CSSProperties = {
+  fontSize: 13,
+  color: colors.darkGrey,
+};
+
+const configValue: React.CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: colors.primary,
+};
+
+const configInput: React.CSSProperties = {
+  width: 80,
+  padding: '4px 8px',
+  border: `1px solid ${colors.lightGrey}`,
+  borderRadius: rd.sm,
+  fontSize: 14,
+  textAlign: 'right',
+};
+
+const editBtn: React.CSSProperties = {
+  padding: '8px 16px',
+  background: colors.primary,
+  color: '#fff',
+  border: 'none',
+  borderRadius: rd.sm,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const smallBtn: React.CSSProperties = {
+  padding: '4px 12px',
+  background: colors.primary,
+  color: '#fff',
+  border: 'none',
+  borderRadius: rd.sm,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: 'pointer',
+};
+
+const saveBtn: React.CSSProperties = {
+  width: '100%',
+  padding: 14,
+  background: '#065f46',
+  color: '#fff',
+  border: 'none',
+  borderRadius: rd.md,
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: 'pointer',
+  marginTop: sp.md,
 };
