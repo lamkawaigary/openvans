@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { GoogleMap, Marker, Polyline } from '@react-google-maps/api';
+import { toast } from 'sonner';
 import { colors, sp, rd } from '../styles';
 import { calculateFare, formatFare } from '../utils/pricing';
 import type { VehicleType } from '../types';
@@ -176,7 +177,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
     const d = new Date(); d.setHours(d.getHours() + 1, 0, 0, 0);
     return d.toISOString().slice(0, 16);
   });
-  const [publishSuccess, setPublishSuccess] = useState(false);
   const [newStop, setNewStop] = useState('');
   const [showStopInput, setShowStopInput] = useState(false);
   const [panelVh, setPanelVh] = useState(55);
@@ -486,10 +486,13 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
         loadDescription: '',
         notes: data.notes,
       });
-      setPublishSuccess(true);
+      toast.success('✅訂單已發佈！');
       setData(DEFAULT_DATA);
-      setTimeout(() => { setPublishSuccess(false); onClose(); }, 2500);
-    } catch (e) { console.error(e); }
+      setTimeout(() => onClose(), 2500);
+    } catch (e) {
+      toast.error('發佈訂單失敗，請重試');
+      console.error(e);
+    }
   };
 
   const canPublish = data.pickupCoord && data.dropoffCoord && data.vehicleType;
@@ -527,18 +530,6 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
             options={{ strokeColor: colors.primaryBlue, strokeOpacity: 0.8, strokeWeight: 4 }} />
         )}
       </GoogleMap>
-
-      {/* Success toast */}
-      {publishSuccess && (
-        <div style={{
-          position: 'absolute', top: 80, left: '50%', transform: 'translateX(-50%)',
-          background: '#22C55E', color: '#fff', padding: `${sp.sm}px ${sp.lg}px`,
-          borderRadius: 9999, fontSize: 14, fontWeight: 700,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 600,
-        }}>
-          ✅ 訂單已發佈！
-        </div>
-      )}
 
       {/* Floating Drawer */}
       <div
