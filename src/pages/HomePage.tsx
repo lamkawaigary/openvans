@@ -8,6 +8,17 @@ import BookingDrawer from '../components/BookingDrawer';
 import type { Booking } from '../types';
 import { colors, sp } from '../styles';
 
+// Redirect owner drivers to the driver jobs page
+function useOwnerRedirect() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (user && user.role === 'owner') {
+      navigate('/driver-jobs', { replace: true });
+    }
+  }, [user]);
+}
+
 const HK_CENTER = { lat: 22.3193, lng: 114.1694 };
 const MAP_STYLE: google.maps.MapTypeStyle[] = [
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
@@ -72,6 +83,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
 
 // ─── Main HomePage ─────────────────────────────────────────────────────────
 export default function HomePage() {
+  useOwnerRedirect(); // redirect owner drivers to driver-jobs immediately
   const navigate = useNavigate();
   const { user } = useAuth();
   const { openMenu } = useSideMenu();
