@@ -50,29 +50,76 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
           )}
         </div>
 
-        {/* Nav Items */}
+        {/* Nav Items — role-aware */}
         <nav style={styles.nav}>
-          {[
-            { path: '/admin', label: '管理後台', icon: '🔧', roles: ['admin'] as string[] },
-            { path: '/', label: '首頁', icon: '🏠' },
-            { path: '/trips', label: '你的柯打', icon: '📋' },
-            { path: '/publish', label: '搵車', icon: '🚛' },
-            { path: '/my-vans', label: '我的車隊', icon: '🚚', roles: ['owner'] as string[] },
-            { path: '/driver-jobs', label: '訂單公海', icon: '📋', roles: ['owner'] as string[] },
-            { path: '/profile', label: '個人資料', icon: '👤' },
-          ].filter(item => !item.roles || (user && item.roles.includes(item.roles[0]))).map(item => {
-            const isActive = location.pathname === item.path;
-            return (
-              <div
-                key={item.path}
-                style={isActive ? styles.menuItemActive : styles.menuItem}
-                onClick={() => handleNav(item.path)}
-              >
-                <span style={{ fontSize: 18 }}>{item.icon}</span>
-                <span style={isActive ? styles.labelActive : styles.label}>{item.label}</span>
-              </div>
-            );
-          })}
+          {user?.role === 'owner' && (
+            <>
+              {[
+                { path: '/driver-jobs', label: '搶單', icon: '📋' },
+                { path: '/my-vans', label: '我的車隊', icon: '🚚' },
+                { path: '/dashboard', label: '車輛Dashboard', icon: '📊' },
+                { path: '/profile', label: '個人資料', icon: '👤' },
+              ].map(item => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <div
+                    key={item.path}
+                    style={isActive ? styles.menuItemActive : styles.menuItem}
+                    onClick={() => handleNav(item.path)}
+                  >
+                    <span style={{ fontSize: 18 }}>{item.icon}</span>
+                    <span style={isActive ? styles.labelActive : styles.label}>{item.label}</span>
+                  </div>
+                );
+              })}
+            </>
+          )}
+          {user?.role === 'renter' && (
+            <>
+              {[
+                { path: '/', label: '首頁', icon: '🏠' },
+                { path: '/trips', label: '你的柯打', icon: '📋' },
+                { path: '/publish', label: '搵車', icon: '🚛' },
+              ].map(item => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <div
+                    key={item.path}
+                    style={isActive ? styles.menuItemActive : styles.menuItem}
+                    onClick={() => handleNav(item.path)}
+                  >
+                    <span style={{ fontSize: 18 }}>{item.icon}</span>
+                    <span style={isActive ? styles.labelActive : styles.label}>{item.label}</span>
+                  </div>
+                );
+              })}
+            </>
+          )}
+          {user?.role === 'admin' && (
+            <>
+              {[
+                { path: '/admin', label: '管理後台', icon: '🔧' },
+                { path: '/', label: '首頁', icon: '🏠' },
+                { path: '/trips', label: '你的柯打', icon: '📋' },
+                { path: '/publish', label: '搵車', icon: '🚛' },
+                { path: '/my-vans', label: '我的車隊', icon: '🚚' },
+                { path: '/driver-jobs', label: '訂單公海', icon: '📋' },
+                { path: '/profile', label: '個人資料', icon: '👤' },
+              ].map(item => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <div
+                    key={item.path}
+                    style={isActive ? styles.menuItemActive : styles.menuItem}
+                    onClick={() => handleNav(item.path)}
+                  >
+                    <span style={{ fontSize: 18 }}>{item.icon}</span>
+                    <span style={isActive ? styles.labelActive : styles.label}>{item.label}</span>
+                  </div>
+                );
+              })}
+            </>
+          )}
 
           <div style={styles.divider} />
 

@@ -7,18 +7,29 @@ export default function BottomNav() {
   const location = useLocation();
   const { user } = useAuth();
 
-  const items = [
-    { path: '/', icon: '🏠', label: '首頁' },
-    { path: '/trips', icon: '📋', label: '貨運' },
-    { path: '/publish', icon: '＋', label: '搵車', accent: true },
-    { path: '/my-vans', icon: '🚛', label: '車隊', roles: ['owner'] as string[] },
-    { path: '/driver-jobs', icon: '📋', label: '公海', roles: ['owner'] as string[] },
+  const isOwner = user?.role === 'owner';
+
+  // Owner: 搶單, 行程, 我的Van, 我的
+  // Renter: 首頁, 貨運, 搵車, 我的
+  const ownerItems = [
+    { path: '/driver-jobs', icon: '📋', label: '搶單' },
+    { path: '/trips', icon: '📋', label: '行程' },
+    { path: '/my-vans', icon: '🚚', label: '我的Van' },
     { path: '/profile', icon: '👤', label: '我的' },
   ];
 
+  const renterItems = [
+    { path: '/', icon: '🏠', label: '首頁' },
+    { path: '/trips', icon: '📋', label: '貨運' },
+    { path: '/publish', icon: '＋', label: '搵車', accent: true },
+    { path: '/profile', icon: '👤', label: '我的' },
+  ];
+
+  const items = isOwner ? ownerItems : renterItems;
+
   return (
     <div style={styles.nav}>
-      {items.filter(item => !item.roles || (user && item.roles.includes(user.role))).map(item => {
+      {items.map(item => {
         const isActive = location.pathname === item.path;
         return (
           <div
