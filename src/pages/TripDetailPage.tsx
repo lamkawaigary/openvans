@@ -22,10 +22,11 @@ export default function TripDetailPage() {
   }, [id]);
 
   const handleCancel = async () => {
-    if (!booking || !confirm('確定取消此訂單？')) return;
+    if (!booking || !user || !confirm('確定取消此訂單？')) return;
     setCancelling(true);
     try {
-      await cancelBooking(booking.id, user?.uid || '');
+      const actorRole: 'renter' | 'owner' = user.uid === booking.renterId ? 'renter' : 'owner';
+      await cancelBooking(booking.id, user.uid, actorRole);
       showNotification({ title: '已取消', body: '訂單已取消', type: 'info' });
       navigate('/trips');
     } catch {

@@ -5,6 +5,7 @@ import { subscribeToRenterBookings, subscribeToOwnerBookings } from '../services
 import type { Booking } from '../types';
 import { colors, sp, rd } from '../styles';
 import OrderHistoryCard from '../components/OrderHistoryCard';
+import NotificationBell from '../components/NotificationBell';
 
 type FilterStatus = 'all' | 'active' | 'past';
 
@@ -50,7 +51,7 @@ export default function TripsPage() {
           </svg>
         </button>
         <span style={styles.title}>你的柯打</span>
-        <div style={{ width: 36 }} />
+        <NotificationBell />
       </div>
 
       {/* Filter pills */}

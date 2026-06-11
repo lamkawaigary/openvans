@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { subscribeToOwnerBookings, acceptBooking, startBooking, completeBooking, BookingError } from '../services/bookings';
 import { subscribeToDriver, updateLocation, type DriverState } from '../services/drivers';
+import { notifyBookingAccepted, notifyDriverEnRoute, notifyBookingCompleted } from '../services/notifications';
 import type { Booking } from '../types';
 import { colors } from '../styles';
 import { formatDateTime, getStatusBadge, VAN_TYPE_EMOJI } from '../utils/helpers';
@@ -26,6 +27,7 @@ export default function VanDashboard() {
   const [driverState, setDriverState] = useState<DriverState | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const locationWatchRef = useRef<number | null>(null);
+  const lastLocationUpdateRef = useRef<number>(0);
 
   // Subscribe to driver online state
   useEffect(() => {
@@ -63,6 +65,9 @@ export default function VanDashboard() {
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
+        const now = Date.now();
+        if (now - lastLocationUpdateRef.current < 15_000) return; // 15s debounce
+        lastLocationUpdateRef.current = now;
         updateLocation(user.uid, pos.coords.latitude, pos.coords.longitude).catch(() => {
           // Silently fail - location update is non-critical
         });
@@ -182,7 +187,11 @@ export default function VanDashboard() {
               onAccept={() => {
                 if (!user || !driverState?.currentVanId) return;
                 acceptBooking(b.id, user.uid, driverState.currentVanId)
-                  .then(() => showSuccess('已接受訂單！'))
+                  .then(() => {
+                    showSuccess('已接受訂單！');
+                    // Notify renter that booking was accepted
+                    notifyBookingAccepted(b.renterId, b.id, user.displayName || '司機', VAN_TYPE_EMOJI[b.vehicleTypeRequired] + ' ' + b.vehicleTypeRequired).catch(() => {});
+                  })
                   .catch((err: unknown) => {
                     if (err instanceof BookingError) showError(err.message);
                     else showError('接受訂單失敗');
@@ -191,7 +200,11 @@ export default function VanDashboard() {
               onStart={() => {
                 if (!user) return;
                 startBooking(b.id, user.uid)
-                  .then(() => showSuccess('已開始送貨！'))
+                  .then(() => {
+                    showSuccess('已開始送貨！');
+                    // Notify renter that driver is en route
+                    notifyDriverEnRoute(b.renterId, b.id).catch(() => {});
+                  })
                   .catch((err: unknown) => {
                     if (err instanceof BookingError) showError(err.message);
                     else showError('開始送貨失敗');
@@ -200,7 +213,11 @@ export default function VanDashboard() {
               onComplete={() => {
                 if (!user) return;
                 completeBooking(b.id, user.uid)
-                  .then(() => showSuccess('已完成送貨！'))
+                  .then(() => {
+                    showSuccess('已完成送貨！');
+                    // Notify renter that delivery is complete
+                    notifyBookingCompleted(b.renterId, b.id, b.estimatedPrice).catch(() => {});
+                  })
                   .catch((err: unknown) => {
                     if (err instanceof BookingError) showError(err.message);
                     else showError('完成送貨失敗');

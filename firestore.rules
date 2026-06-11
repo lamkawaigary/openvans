@@ -18,13 +18,17 @@ service cloud.firestore {
 
     // ─── Users ─────────────────────────────────────────────────────────────
     match /users/{userId} {
-      allow read: if true;
+      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow write: if isOwner(userId) || isAdmin();
     }
 
-    // ─── Vans ───────────────────────────────────────────────────────────────
+    // ─── Vans ──────────────────────────────────────────────────────────────
     match /vans/{vanId} {
-      allow read: if true;
+      // Only owner or admin can read a specific van's details (no public listing)
+      allow read: if isSignedIn()
+                  && (resource.data.ownerId == request.auth.uid || isAdmin());
+      // Anyone signed in can list vans (for matching) — enforced in app logic
+      allow list: if isSignedIn();
       allow create: if isSignedIn()
                     && request.resource.data.ownerId == request.auth.uid;
       allow update: if isSignedIn()
@@ -36,35 +40,33 @@ service cloud.firestore {
 
     // ─── Bookings ──────────────────────────────────────────────────────────
     match /bookings/{bookingId} {
-      // Allow any signed-in user to read bookings they are involved in
-      // Allow admin to read ALL bookings
+      // Read: renter (own bookings), owner (own bookings), or admin (all)
       allow read: if isSignedIn()
                   && (resource.data.renterId == request.auth.uid
                       || resource.data.ownerId == request.auth.uid
-                      || resource.data.ownerId == null
                       || isAdmin());
 
-      // Allow renters to create new bookings
+      // Create: any signed-in user can create a booking as renter
       allow create: if isSignedIn()
                     && request.resource.data.renterId == request.auth.uid
                     && request.resource.data.status == 'pending';
 
-      // Allow admin to do anything
+      // Admin: full access
       allow update, delete: if isAdmin();
 
-      // Allow renters to cancel their own pending bookings
+      // Renter: can cancel their own pending/confirmed booking
       allow update: if isSignedIn()
                     && resource.data.renterId == request.auth.uid
                     && request.resource.data.status == 'cancelled'
-                    && resource.data.status == 'pending';
+                    && resource.data.status in ['pending', 'confirmed'];
 
-      // Allow owners to confirm pending bookings assigned to them
+      // Owner: can accept pending bookings assigned to them
       allow update: if isSignedIn()
                     && resource.data.ownerId == request.auth.uid
                     && request.resource.data.status == 'confirmed'
                     && resource.data.status == 'pending';
 
-      // Allow owners to advance status: confirmed → in_progress → completed
+      // Owner: can advance confirmed → in_progress → completed
       allow update: if isSignedIn()
                     && resource.data.ownerId == request.auth.uid
                     && request.resource.data.status in ['in_progress', 'completed']
@@ -73,14 +75,22 @@ service cloud.firestore {
 
     // ─── Config ────────────────────────────────────────────────────────────
     match /config/{configId} {
-      allow read: if true;
+      allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
     // ─── Notifications ─────────────────────────────────────────────────────
     match /notifications/{notifId} {
       allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow write: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+    }
+
+    // ─── Drivers (online/offline state + location tracking) ──────────────────
+    match /drivers/{ownerId} {
+      allow read: if isSignedIn() && (request.auth.uid == ownerId || isAdmin());
+      allow write: if isSignedIn() && request.auth.uid == ownerId;
+      allow delete: if isSignedIn() && request.auth.uid == ownerId;
     }
   }
 }

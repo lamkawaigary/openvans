@@ -12,6 +12,7 @@ export default function BottomNav() {
     { path: '/trips', icon: '📋', label: '貨運' },
     { path: '/publish', icon: '＋', label: '搵車', accent: true },
     { path: '/my-vans', icon: '🚛', label: '車隊', roles: ['owner'] as string[] },
+    { path: '/driver-jobs', icon: '📋', label: '公海', roles: ['owner'] as string[] },
     { path: '/profile', icon: '👤', label: '我的' },
   ];
 

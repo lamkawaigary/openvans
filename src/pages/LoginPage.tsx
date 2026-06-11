@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase/config';
 import { GoogleAuthProvider, signInWithRedirect } from 'firebase/auth';
-import { auth } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { colors } from '../styles';
@@ -32,7 +33,10 @@ export default function LoginPage() {
       if (isLogin) {
         await signIn(email, password);
         showNotification({ title: '登入成功', body: '歡迎回來！', type: 'success' });
-        navigate('/');
+        // Fetch fresh role from Firestore (user state updates asynchronously)
+        const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
+        const role = userDoc.data()?.role as string | undefined;
+        navigate(role === 'owner' ? '/driver-jobs' : '/');
       } else {
         await signUp(email, password, name, phone, role);
         showNotification({ title: '註冊成功', body: '歡迎加入 OpenVan！', type: 'success' });
@@ -50,7 +54,21 @@ export default function LoginPage() {
     try {
       await signInWithGoogle(role);
       showNotification({ title: '登入成功', body: '以 Google 帳戶登入', type: 'success' });
-      navigate('/onboarding');
+      // Check if user document already exists (returning user) or new (needs onboarding)
+      const uid = auth.currentUser?.uid;
+      if (uid) {
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        if (userDoc.exists()) {
+          // Existing user — go to driver jobs (owner) or home (renter)
+          const existingRole = userDoc.data().role as string;
+          navigate(existingRole === 'owner' ? '/driver-jobs' : '/');
+        } else {
+          // New user — complete profile first
+          navigate('/onboarding');
+        }
+      } else {
+        navigate('/onboarding');
+      }
     } catch (err: any) {
       if (err.message === 'popup_blocked') {
         showNotification({ 

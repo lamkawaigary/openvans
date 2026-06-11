@@ -14,6 +14,7 @@ import TripsPage from './pages/TripsPage';
 import TripDetailPage from './pages/TripDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import VanDashboard from './pages/VanDashboard';
+import DriverJobsPage from './pages/DriverJobsPage';
 import MyVansPage from './pages/MyVansPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminRoute from './components/AdminRoute';
@@ -33,6 +34,7 @@ function AppShell() {
         <Route path="/trips/:id" element={<TripDetailPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/dashboard" element={<VanDashboard />} />
+        <Route path="/driver-jobs" element={<DriverJobsPage />} />
         <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/my-vans" element={<MyVansPage />} />
         <Route path="*" element={<HomePage />} />

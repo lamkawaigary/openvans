@@ -58,6 +58,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
             { path: '/trips', label: '你的柯打', icon: '📋' },
             { path: '/publish', label: '搵車', icon: '🚛' },
             { path: '/my-vans', label: '我的車隊', icon: '🚚', roles: ['owner'] as string[] },
+            { path: '/driver-jobs', label: '訂單公海', icon: '📋', roles: ['owner'] as string[] },
             { path: '/profile', label: '個人資料', icon: '👤' },
           ].filter(item => !item.roles || (user && item.roles.includes(item.roles[0]))).map(item => {
             const isActive = location.pathname === item.path;

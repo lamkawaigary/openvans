@@ -26,7 +26,8 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
     try {
       await updateUserProfile({ name: name.trim(), phone: phone.trim(), role });
       showNotification({ title: '資料已完善！', body: '歡迎加入 OpenVan', type: 'success' });
-      navigate(isFirstTime ? '/' : '/profile');
+      // Owner (driver) goes to driver jobs page; renter goes to home
+      navigate(role === 'owner' ? '/driver-jobs' : '/');
     } catch (err: any) {
       showNotification({ title: '儲存失敗', body: err.message, type: 'error' });
     } finally {
