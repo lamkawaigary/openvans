@@ -1,21 +1,37 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { IconPackage, IconLargeTruck } from '../components/Icon';
 import { useNavigate } from 'react-router-dom';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import { GoogleAuthProvider, signInWithRedirect } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { colors } from '../styles';
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { user, signIn, signUp, signInWithGoogle } = useAuth();
+  const { user, signIn, signUp, renderGoogleButton } = useAuth();
   const { showNotification } = useNotification();
+  const googleButtonRef = useRef<HTMLDivElement>(null);
 
   // Already logged in → go home (onboarding check happens there)
   useEffect(() => {
-    if (user) navigate('/');
+    if (!user) return;
+    // Check if this is a returning Google sign-in (role stored in sessionStorage)
+    const savedRole = sessionStorage.getItem('google_signin_role');
+    if (savedRole) {
+      // New Google user returning from redirect → onboarding
+      sessionStorage.removeItem('google_signin_role');
+      navigate('/onboarding');
+    } else {
+      // Normal email login or existing user
+      navigate('/');
+    }
   }, [user]);
+
+  // Mount a real Google Sign-In button (rendered by Google Identity Services).
+  // This replaces the previous One Tap UX which was hidden in the corner and
+  // could leave the loading state stuck if dismissed.
+  // (moved above with role state)
 
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -24,6 +40,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+
+  // Mount a real Google Sign-In button (rendered by Google Identity Services).
+  // This replaces the previous One Tap UX which was hidden in the corner and
+  // could leave the loading state stuck if dismissed.
+  useEffect(() => {
+    if (!googleButtonRef.current) return;
+    // Stash the chosen role so the post-auth flow can route to /onboarding
+    sessionStorage.setItem('google_signin_role', role);
+    let cancelled = false;
+    (async () => {
+      try {
+        await renderGoogleButton(googleButtonRef.current!, (msg) => {
+          if (cancelled) return;
+          showNotification({ title: 'Google 登入失敗', body: msg, type: 'error' });
+        });
+      } catch (err: any) {
+        if (cancelled) return;
+        showNotification({ title: '錯誤', body: err?.message || 'Google 登入初始化失敗', type: 'error' });
+      }
+    })();
+    return () => { cancelled = true; };
+    // Re-mount the button when role changes (signup flow shows/hides role selector)
+  }, [role, renderGoogleButton, showNotification]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,48 +88,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogle = async () => {
-    setLoading(true);
-    try {
-      await signInWithGoogle(role);
-      showNotification({ title: '登入成功', body: '以 Google 帳戶登入', type: 'success' });
-      // Check if user document already exists (returning user) or new (needs onboarding)
-      const uid = auth.currentUser?.uid;
-      if (uid) {
-        const userDoc = await getDoc(doc(db, 'users', uid));
-        if (userDoc.exists()) {
-          // Existing user — go to driver jobs (owner) or home (renter)
-          const existingRole = userDoc.data().role as string;
-          navigate(existingRole === 'owner' ? '/driver-jobs' : '/');
-        } else {
-          // New user — complete profile first
-          navigate('/onboarding');
-        }
-      } else {
-        navigate('/onboarding');
-      }
-    } catch (err: any) {
-      if (err.message === 'popup_blocked') {
-        showNotification({ 
-          title: '請稍等', 
-          body: '正在打開 Google 登入...', 
-          type: 'info' 
-        });
-        try {
-          const provider = new GoogleAuthProvider();
-          await signInWithRedirect(auth, provider);
-        } catch (redirectErr) {
-          showNotification({ title: '錯誤', body: '無法打開 Google 登入，請允許彈出窗口', type: 'error' });
-        }
-      } else if (err.message === 'unauthorized_domain') {
-        showNotification({ title: '錯誤', body: '網域未被授權，請聯絡系統管理員', type: 'error' });
-      } else {
-        showNotification({ title: '錯誤', body: err.message || 'Google 登入失敗', type: 'error' });
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  // handleGoogle is no longer used — the real Google button is rendered by renderGoogleButton().
 
   return (
     <div style={s.page}>
@@ -107,7 +105,7 @@ export default function LoginPage() {
 
       {/* Logo */}
       <div style={s.logoSection}>
-        <div style={s.logoMark}>🚛</div>
+        <div style={s.logoMark}><IconLargeTruck size={48} color={colors.primaryBlue} /></div>
         <div style={s.logoText}>open<span style={s.logoAccent}>van</span></div>
         <div style={s.tagline}>香港貨 Van 租賃平台</div>
       </div>
@@ -117,16 +115,18 @@ export default function LoginPage() {
         <div style={s.roleSection}>
           <div style={s.roleLabel}>我想以...</div>
           <div style={s.roleGrid}>
-            {[
-              { key: 'renter', emoji: '📦', text: '租用者' },
-              { key: 'owner', emoji: '🚛', text: '車主' },
-            ].map(r => (
+            {([
+              { key: 'renter' as const, text: '租用者' },
+              { key: 'owner' as const, text: '車主' },
+            ]).map(r => (
               <div
                 key={r.key}
                 style={role === r.key ? s.roleCardActive : s.roleCard}
                 onClick={() => setRole(r.key as typeof role)}
               >
-                <span style={s.roleEmoji}>{r.emoji}</span>
+                <span style={s.roleEmoji}>
+                  {r.key === 'renter' ? <IconPackage size={28} color={role === r.key ? colors.primaryBlue : colors.darkGrey} /> : <IconLargeTruck size={28} color={role === r.key ? colors.primaryBlue : colors.darkGrey} />}
+                </span>
                 <span style={role === r.key ? s.roleTextActive : s.roleText}>{r.text}</span>
               </div>
             ))}
@@ -169,15 +169,11 @@ export default function LoginPage() {
           <div style={s.divLine} />
         </div>
 
-        <button type="button" style={s.btnGoogle} onClick={handleGoogle}>
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-          </svg>
-          {isLogin ? '以 Google 登入' : '以 Google 註冊'}
-        </button>
+        {/* Real Google Sign-In button — rendered by Google Identity Services */}
+        <div
+          ref={googleButtonRef}
+          style={s.googleButtonContainer}
+        />
       </form>
 
       {/* Toggle */}
@@ -267,6 +263,12 @@ const s: Record<string, React.CSSProperties> = {
     border: '1.5px solid #E4E7EC', borderRadius: 12,
     padding: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer',
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+  },
+  googleButtonContainer: {
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    minHeight: 48, // prevent layout shift while GIS loads
   },
   divider: { display: 'flex', alignItems: 'center', gap: 12, margin: '4px 0' },
   divLine: { flex: 1, height: 1, background: '#E4E7EC' },
