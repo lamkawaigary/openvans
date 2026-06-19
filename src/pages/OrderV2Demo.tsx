@@ -10,6 +10,7 @@ import { useSideMenu } from '../context/SideMenuContext';
 import { createBooking } from '../services/bookings';
 import { VEHICLE_TYPE_LABELS, VEHICLE_TYPE_EMOJI, VEHICLE_TYPE_CAPACITY } from '../utils/helpers';
 import type { VehicleType } from '../types';
+import { getAuth } from 'firebase/auth';
 
 type ServiceType = 'delivery' | 'truck' | 'cross_border';
 const SERVICE_LABELS: Record<ServiceType, { label: string; icon: string; desc: string }> = {
@@ -187,8 +188,10 @@ export default function OrderV2Demo() {
     // (e.g. fresh tab load, ID token just expired, signed-in cookie from a
     // different Firebase session). Also force ID token refresh before write so
     // Firestore's isSignedIn() check passes reliably.
-    const firebaseGlobal = (typeof window !== 'undefined' ? (window as any).firebase : undefined) as any;
-    const liveUser = user || (firebaseGlobal && firebaseGlobal.auth && firebaseGlobal.auth().currentUser) || null;
+    // Fix J v2: getAuth() from firebase/auth (ESM) gives reliable currentUser
+    // even if useAuth() context is stale (fresh tab load, ID token expired,
+    // sandbox session, etc).
+    const liveUser = user || getAuth().currentUser || null;
     if (!endCoord || !endLabel || !liveUser) {
       console.warn('[handleSubmit] guard failed', {
         hasEndCoord: !!endCoord,
