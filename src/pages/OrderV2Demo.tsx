@@ -76,6 +76,31 @@ export default function OrderV2Demo() {
   // Phase 7.5: file upload (stub)
   const [attachments, setAttachments] = useState<Array<{ fileName: string; sizeBytes: number; mimeType: string }>>([]);
 
+  // Fix F: keep an always-fresh ref to sheetMode so dragend listener (registered once at map mount)
+  // can read the LATEST sheetMode when it fires, not the value at registration time.
+  const sheetModeRef = useRef<SheetMode>('idle');
+  useEffect(() => { sheetModeRef.current = sheetMode; }, [sheetMode]);
+
+  // Fix G: on mount, request user's geolocation to seed startCoord/startLabel.
+  // Fallback to DEFAULT_START (中環 IFC) if denied/failed.
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coord = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        setStartCoord(coord);
+        reverseGeocode(coord.lat, coord.lng)
+          .then(addr => setStartLabel(addr))
+          .catch(() => setStartLabel('當前位置'));
+      },
+      (err) => {
+        console.warn('[OrderV2Demo] Geolocation denied/failed, using default 中環 IFC:', err.message);
+        // Keep DEFAULT_START
+      },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+    );
+  }, []);
+
   const MAX_WAYPOINTS = 3;
   const addWaypoint = (coord: Coord, label: string) => {
     if (waypoints.length >= MAX_WAYPOINTS) return;
@@ -262,16 +287,12 @@ export default function OrderV2Demo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endCoord, startCoord, waypoints.length, waypoints.map(w => `${w.coord.lat},${w.coord.lng}`).join('|')]);
 
-  // Map click → if in a search context, directly set the corresponding station;
-  // otherwise drop a pending pin + show peek sheet for confirmation (default = set end).
-  // Fix B: respect sheetMode context so user-initiated 'searching-start' / 'searching-end' /
-  // 'searching-waypoint' click on map does NOT silently overwrite dropoff.
-  const handleMapClick = (e: google.maps.MapMouseEvent) => {
-    if (!e.latLng) return;
-    const coord = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-    const targetMode = sheetMode; // capture for async use
-
-    // If user is in a search context, apply click to that station immediately
+  // Shared helper: pick a coord on map and route it to the right station
+  // based on the LATEST sheetMode (read via sheetModeRef so async/closure handlers
+  // like dragend always see the current value).
+  // Fix B + G: respect sheetMode context for both handleMapClick AND handleMapLoad dragend.
+  const applyMapPick = (coord: Coord) => {
+    const targetMode = sheetModeRef.current;
     if (targetMode === 'searching-start' || targetMode === 'searching-end' || targetMode === 'searching-waypoint') {
       reverseGeocode(coord.lat, coord.lng)
         .then(addr => {
@@ -301,8 +322,7 @@ export default function OrderV2Demo() {
         });
       return;
     }
-
-    // Default: idle / dragging mode click → show drag confirm panel (default = set end)
+    // Default: idle / dragging mode → show drag confirm panel (default = set end)
     setPendingCoord(coord);
     setPendingLabel('載入地址中...');
     setSheetMode('dragging');
@@ -311,19 +331,20 @@ export default function OrderV2Demo() {
       .catch(() => setPendingLabel(`${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}`));
   };
 
-  // Drag-end listener — register inside onLoad so it definitely attaches after map mount.
+  // Map click → route via applyMapPick (uses latest sheetMode).
+  const handleMapClick = (e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    applyMapPick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
+  };
+
+  // Drag-end listener — also routes via applyMapPick so dragging the map in a search
+  // context updates the correct station (Fix G: previously hardcoded to dropoff).
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     map.addListener('dragend', () => {
       const center = map.getCenter();
       if (!center) return;
-      const coord = { lat: center.lat(), lng: center.lng() };
-      setPendingCoord(coord);
-      setPendingLabel('載入地址中...');
-      setSheetMode('dragging');
-      reverseGeocode(coord.lat, coord.lng)
-        .then(addr => setPendingLabel(addr))
-        .catch(() => setPendingLabel(`${coord.lat.toFixed(5)}, ${coord.lng.toFixed(5)}`));
+      applyMapPick({ lat: center.lat(), lng: center.lng() });
     });
   };
 
