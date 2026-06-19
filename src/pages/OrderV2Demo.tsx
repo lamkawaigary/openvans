@@ -337,14 +337,36 @@ export default function OrderV2Demo() {
     applyMapPick({ lat: e.latLng.lat(), lng: e.latLng.lng() });
   };
 
+  // Fix H: Compute the visible map center coord (sheet covers the bottom portion of
+  // the viewport, so the user-perceived "center" of the map is the visible area center,
+  // NOT map.getCenter()). Without this, dragging the map puts the picked coord in the
+  // hidden sheet-covered area, which the user cannot see or verify.
+  const computeVisibleCenter = (map: google.maps.Map, mode: SheetMode): google.maps.LatLng | null => {
+    const div = map.getDiv();
+    if (!div) return map.getCenter() ?? null;
+    const height = div.clientHeight;
+    let sheetHeight = 0;
+    if (mode === 'idle') sheetHeight = height * 0.62;
+    else if (mode === 'dragging') sheetHeight = 240;
+    else if (mode === 'searching-start' || mode === 'searching-end' || mode === 'searching-waypoint') {
+      sheetHeight = Math.min(height * 0.92, height - 44);
+    }
+    const projection = map.getProjection();
+    if (!projection) return map.getCenter() ?? null;
+    const width = div.clientWidth;
+    // Visible area = top (height - sheetHeight) range; center = (height - sheetHeight)/2
+    const visibleCenterPoint = new google.maps.Point(width / 2, (height - sheetHeight) / 2);
+    return projection.fromPointToLatLng(visibleCenterPoint) ?? map.getCenter() ?? null;
+  };
+
   // Drag-end listener — also routes via applyMapPick so dragging the map in a search
-  // context updates the correct station (Fix G: previously hardcoded to dropoff).
+  // context updates the correct station (Fix G). Uses visible center (Fix H).
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     map.addListener('dragend', () => {
-      const center = map.getCenter();
-      if (!center) return;
-      applyMapPick({ lat: center.lat(), lng: center.lng() });
+      const visibleCenter = computeVisibleCenter(map, sheetModeRef.current);
+      if (!visibleCenter) return;
+      applyMapPick({ lat: visibleCenter.lat(), lng: visibleCenter.lng() });
     });
   };
 
@@ -405,9 +427,13 @@ export default function OrderV2Demo() {
           )}
           {pendingCoord && (
             <Marker position={pendingCoord} zIndex={12} icon={{
-              path: 'M 0,-10 A 10,10 0 1,0 0,10 L 0,4 L -2,4 L -2,-6 Z',
-              fillColor: colors.brand, fillOpacity: 1,
-              strokeColor: '#fff', strokeWeight: 4, scale: 1.8,
+              // Fix I: crosshair / target reticle (hollow circle + 4 cross lines + center dot)
+              // — visually communicates "this is the picked point" instead of a teardrop pin.
+              path: 'M -8,0 L -16,0 M 8,0 L 16,0 M 0,-8 L 0,-16 M 0,8 L 0,16 M -10,0 A 10,10 0 1,0 10,0 A 10,10 0 1,0 -10,0 M -2,0 A 2,2 0 1,0 2,0 A 2,2 0 1,0 -2,0',
+              fillOpacity: 0,
+              strokeColor: colors.brand,
+              strokeWeight: 3,
+              scale: 1.5,
             }} />
           )}
           {/* Waypoint markers (grey) */}
