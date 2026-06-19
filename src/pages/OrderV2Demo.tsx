@@ -458,10 +458,15 @@ export default function OrderV2Demo() {
               </div>
 
               {/* Phase 7.2 + 7.3: Waypoint list with reorder handle + rename — MOVED between pickup and dropoff (Fix A) */}
+              {/* Hotfix E: Block now also renders when endCoord is set (so user has an affordance
+                  to add their FIRST waypoint). Inside: header + list render only if waypoints > 0;
+                  add-waypoint button renders whenever we still have capacity. */}
 
-              {waypoints.length > 0 && (
+              {(waypoints.length > 0 || endCoord) && (
                 <div style={{ marginBottom: 0 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 8px', marginBottom: 6 }}>中途站 ({waypoints.length}/{MAX_WAYPOINTS})</div>
+                  {waypoints.length > 0 && (
+                    <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, padding: '4px 8px', marginBottom: 6 }}>中途站 ({waypoints.length}/{MAX_WAYPOINTS})</div>
+                  )}
                   {waypoints.map((w, i) => (
                     <div
                       key={`wp-row-${i}`}
@@ -508,7 +513,7 @@ export default function OrderV2Demo() {
                       <div onClick={() => removeWaypoint(i)} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: colors.textMuted, fontSize: 18, flexShrink: 0 }} title="刪除中途站">×</div>
                     </div>
                   ))}
-                  {draggingWaypointIdx !== null && (
+                  {waypoints.length > 0 && draggingWaypointIdx !== null && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button
                         onClick={() => { moveWaypoint(draggingWaypointIdx, Math.max(0, draggingWaypointIdx - 1)); }}
@@ -525,7 +530,7 @@ export default function OrderV2Demo() {
                   )}
                   {waypoints.length < MAX_WAYPOINTS && (
                     <div onClick={() => enterSearch('waypoint')} style={{ padding: '10px 12px', borderRadius: 10, border: `1.5px dashed ${colors.border}`, textAlign: 'center', color: colors.brand, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
-                      ＋ 加入新中途站
+                      ＋ {waypoints.length > 0 ? '加入新中途站' : '加入中途站'}
                     </div>
                   )}
                 </div>
