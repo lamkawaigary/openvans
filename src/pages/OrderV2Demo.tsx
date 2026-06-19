@@ -183,16 +183,33 @@ export default function OrderV2Demo() {
   }, [distanceKm, vehicleType, serviceType, crossBorderCheckpoint]);
 
   const handleSubmit = async () => {
-    if (!endCoord || !endLabel || !user) return;
+    // Fix J: use firebase.auth().currentUser as fallback if useAuth() context is stale
+    // (e.g. fresh tab load, ID token just expired, signed-in cookie from a
+    // different Firebase session). Also force ID token refresh before write so
+    // Firestore's isSignedIn() check passes reliably.
+    const firebaseGlobal = (typeof window !== 'undefined' ? (window as any).firebase : undefined) as any;
+    const liveUser = user || (firebaseGlobal && firebaseGlobal.auth && firebaseGlobal.auth().currentUser) || null;
+    if (!endCoord || !endLabel || !liveUser) {
+      console.warn('[handleSubmit] guard failed', {
+        hasEndCoord: !!endCoord,
+        hasEndLabel: !!endLabel,
+        hasUser: !!user,
+        hasLiveUser: !!liveUser,
+      });
+      showNotification({ title: '請先登入', body: '登入狀態已過期，請重新整理頁面後再試。', type: 'error' });
+      return;
+    }
     setSubmitting(true);
     try {
+      // Force ID token refresh (catches expired-token case silently before write)
+      try { await liveUser.getIdToken(true); } catch (_) { /* ignore, will surface in createBooking error */ }
       // Build pickup time: now + 1h for 即時 mode, or user-picked for 預約
       const finalPickupTime = pickupMode === 'now'
         ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
         : new Date(pickupTime).toISOString();
 
       const id = await createBooking({
-        renterId: user.uid,
+        renterId: liveUser.uid,
         pickupAddress: startLabel,
         pickupLat: startCoord.lat,
         pickupLng: startCoord.lng,
