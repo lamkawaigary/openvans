@@ -191,7 +191,7 @@ export default function OrderV2Demo() {
     // Fix J v2: getAuth() from firebase/auth (ESM) gives reliable currentUser
     // even if useAuth() context is stale (fresh tab load, ID token expired,
     // sandbox session, etc).
-    const liveUser = user || getAuth().currentUser || null;
+    const liveUser: any = user || getAuth().currentUser || null;
     if (!endCoord || !endLabel || !liveUser) {
       console.warn('[handleSubmit] guard failed', {
         hasEndCoord: !!endCoord,
