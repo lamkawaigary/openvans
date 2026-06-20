@@ -118,9 +118,10 @@ export default function PublishPage() {
           <div key={s} style={styles.stepRow}>
             <div style={{
               ...styles.stepDot,
-              background: step === s ? colors.primaryBlue : '#9ca3af',
+              background: step === s ? colors.primaryBlue : colors.lightGrey,
+              color: step === s ? colors.primary : colors.textSecondary,
             }}>{i + 1}</div>
-            <div style={{ ...styles.stepLabel, color: step === s ? colors.primaryBlue : '#9ca3af' }}>
+            <div style={{ ...styles.stepLabel, color: step === s ? colors.primaryBlue : colors.textMuted }}>
               {s === 'route' ? '路線' : s === 'load' ? '货物' : '確認'}
             </div>
             {i < 2 && <div style={styles.stepLine} />}
