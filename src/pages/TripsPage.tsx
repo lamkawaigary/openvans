@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { subscribeToRenterBookings, subscribeToOwnerBookings } from '../services/bookings';
 import type { Booking } from '../types';
+import { IconLargeTruck, IconPackage } from '../components/Icon';
 import { colors, sp, rd } from '../styles';
 import OrderHistoryCard from '../components/OrderHistoryCard';
 import NotificationBell from '../components/NotificationBell';
@@ -86,7 +87,7 @@ export default function TripsPage() {
           <div style={styles.loading}>載入中…</div>
         ) : filtered.length === 0 ? (
           <div style={styles.empty}>
-            <div style={styles.emptyIcon}>{user?.role === 'owner' ? '🚛' : '📦'}</div>
+            <div style={styles.emptyIcon}>{user?.role === 'owner' ? <IconLargeTruck size={48} color={colors.textMuted} /> : <IconPackage size={48} color={colors.textMuted} />}</div>
             <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
               {user?.role === 'owner'
                 ? '暫時沒有車單'

@@ -5,15 +5,25 @@ import { useNotification } from '../context/NotificationContext';
 import { createBooking } from '../services/bookings';
 import type { LoadType, VehicleType } from '../types';
 import { colors } from '../styles';
-import { VEHICLE_TYPE_LABELS, VEHICLE_TYPE_EMOJI, VEHICLE_TYPE_CAPACITY } from '../utils/helpers';
+import { VEHICLE_TYPE_LABELS, VEHICLE_TYPE_CAPACITY } from '../utils/helpers';
+import { IconMapPin, IconArrowUp, IconLargeTruck, IconTruck, IconMotorcycle, IconPackage, IconLuggage, IconShip, IconDocument, IconInfo } from '../components/Icon';
+
+function VehicleTypeIcon({ type, size = 28 }: { type: VehicleType; size?: number }) {
+  switch (type) {
+    case 'motorcycle': return <IconMotorcycle size={size} color={colors.textPrimary} />;
+    case 'light': return <IconTruck size={size} color={colors.textPrimary} />;
+    case 'truck_5_5t': return <IconLargeTruck size={size} color={colors.textPrimary} />;
+    default: return <IconTruck size={size} color={colors.textPrimary} />;
+  }
+}
 
 type Step = 'route' | 'load' | 'confirm';
 
 const VEHICLE_TYPES: VehicleType[] = ['motorcycle', 'light', 'truck_5_5t'];
-const LOAD_TYPES: { type: LoadType; emoji: string; label: string }[] = [
-  { type: 'small', emoji: '📦', label: '小件' },
-  { type: 'medium', emoji: '🧳', label: '中件' },
-  { type: 'large', emoji: '🚢', label: '大件' },
+const LOAD_TYPES: { type: LoadType; label: string; Icon: typeof IconPackage }[] = [
+  { type: 'small', label: '小件', Icon: IconPackage },
+  { type: 'medium', label: '中件', Icon: IconLuggage },
+  { type: 'large', label: '大件', Icon: IconShip },
 ];
 
 export default function PublishPage() {
@@ -123,15 +133,15 @@ export default function PublishPage() {
         {step === 'route' && (
           <div style={styles.section}>
             <div style={styles.field}>
-              <label style={styles.label}>📍 取貨地點</label>
+              <label style={styles.label}><IconMapPin size={16} color={colors.textSecondary} /> 取貨地點</label>
               <input style={styles.input} placeholder="輸入取貨地址" value={pickupAddress} onChange={e => setPickupAddress(e.target.value)} />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>🏁 送貨地點</label>
+              <label style={styles.label}><IconMapPin size={16} color={colors.textSecondary} style={{ transform: 'rotate(180deg)' }} /> 送貨地點</label>
               <input style={styles.input} placeholder="輸入送貨地址" value={dropoffAddress} onChange={e => setDropoffAddress(e.target.value)} />
             </div>
             <div style={styles.field}>
-              <label style={styles.label}>⏰ 取貨時間</label>
+              <label style={styles.label}><IconArrowUp size={16} color={colors.textSecondary} /> 取貨時間</label>
               <input style={styles.input} type="datetime-local" value={pickupTime} onChange={e => setPickupTime(e.target.value)} />
             </div>
           </div>
@@ -141,11 +151,11 @@ export default function PublishPage() {
           <div style={styles.section}>
             {/* Vehicle type */}
             <div style={styles.field}>
-              <label style={styles.label}>🚛 需要的貨車類型</label>
+              <label style={styles.label}><IconLargeTruck size={16} color={colors.textSecondary} /> 需要的貨車類型</label>
               <div style={styles.vanGrid}>
                 {VEHICLE_TYPES.map(vt => (
                   <div key={vt} style={vehicleType === vt ? styles.vanCardActive : styles.vanCard} onClick={() => setVehicleType(vt)}>
-                    <div style={{ fontSize: '28px' }}>{VEHICLE_TYPE_EMOJI[vt]}</div>
+                    <VehicleTypeIcon type={vt} size={28} />
                     <div style={{ fontWeight: 700, fontSize: '13px', marginTop: '4px' }}>{VEHICLE_TYPE_LABELS[vt]}</div>
                     <div style={{ fontSize: '11px', color: colors.textMuted, marginTop: '2px' }}>
                       {VEHICLE_TYPE_CAPACITY[vt].kg} | {VEHICLE_TYPE_CAPACITY[vt].m3}
@@ -157,11 +167,11 @@ export default function PublishPage() {
 
             {/* Load count */}
             <div style={styles.field}>
-              <label style={styles.label}>📦 货物数量（点击 +/- 调整）</label>
+              <label style={styles.label}><IconPackage size={16} color={colors.textSecondary} /> 货物数量（点击 +/- 调整）</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {LOAD_TYPES.map(({ type, emoji, label }) => (
+                {LOAD_TYPES.map(({ type, label, Icon }) => (
                   <div key={type} style={styles.loadRow}>
-                    <span style={{ fontSize: '20px' }}>{emoji}</span>
+                    <Icon size={20} color={colors.textPrimary} />
                     <span style={{ flex: 1, fontWeight: 600, fontSize: '14px' }}>{label}</span>
                     <div style={styles.stepper}>
                       <button style={styles.stepBtn} onClick={() => setLoads(p => ({ ...p, [type]: Math.max(0, p[type] - 1) }))}>−</button>
@@ -171,12 +181,12 @@ export default function PublishPage() {
                   </div>
                 ))}
               </div>
-              <div style={styles.totalRow}>📦 共 {totalLoadCount} 件货物</div>
+              <div style={styles.totalRow}><IconPackage size={16} color={colors.primaryBlue} /> 共 {totalLoadCount} 件货物</div>
             </div>
 
             {/* Description */}
             <div style={styles.field}>
-              <label style={styles.label}>📝 货物描述（可选）</label>
+              <label style={styles.label}><IconDocument size={16} color={colors.textSecondary} /> 货物描述（可选）</label>
               <input style={styles.input} placeholder="例如：傢俬、搬屋、裝修材料..." value={loadDescription} onChange={e => setLoadDescription(e.target.value)} />
             </div>
           </div>
@@ -185,7 +195,7 @@ export default function PublishPage() {
         {step === 'confirm' && (
           <div style={styles.section}>
             <div style={styles.confirmCard}>
-              <div style={styles.confirmTitle}>📋 貨運需求摘要</div>
+              <div style={styles.confirmTitle}><IconDocument size={16} color={colors.textSecondary} /> 貨運需求摘要</div>
               <div style={styles.confirmRow}>
                 <span style={styles.confirmLabel}>取貨地點</span>
                 <span style={styles.confirmValue}>{pickupAddress}</span>
@@ -200,11 +210,11 @@ export default function PublishPage() {
               </div>
               <div style={styles.confirmRow}>
                 <span style={styles.confirmLabel}>貨車類型</span>
-                <span style={styles.confirmValue}>{VEHICLE_TYPE_EMOJI[vehicleType]} {VEHICLE_TYPE_LABELS[vehicleType]}</span>
+                <span style={styles.confirmValue}><VehicleTypeIcon type={vehicleType} size={16} /> {VEHICLE_TYPE_LABELS[vehicleType]}</span>
               </div>
               <div style={styles.confirmRow}>
                 <span style={styles.confirmLabel}>货物数量</span>
-                <span style={styles.confirmValue}>📦 {totalLoadCount} 件</span>
+                <span style={styles.confirmValue}><IconPackage size={16} color={colors.textPrimary} /> {totalLoadCount} 件</span>
               </div>
               {loadDescription && (
                 <div style={styles.confirmRow}>
@@ -213,7 +223,7 @@ export default function PublishPage() {
                 </div>
               )}
             </div>
-            <div style={styles.tip}>💡 你的需求發布後，附近司機會收到通知並可接單。</div>
+            <div style={styles.tip}><IconInfo size={16} color={colors.primaryBlue} /> 你的需求發布後，附近司機會收到通知並可接單。</div>
           </div>
         )}
       </div>

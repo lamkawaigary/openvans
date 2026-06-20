@@ -91,6 +91,13 @@ export interface Booking {
     lng?: number;
   }>;
 
+  // Service type (Phase 6)
+  serviceType?: 'delivery' | 'truck' | 'cross_border';
+
+  // Cross-border specifics (Phase 6, only when serviceType='cross_border')
+  crossBorderCheckpoint?: string;  // e.g. 'huanggang' | 'shatoujiao' | 'luohu' | 'lokma Chau' | 'man kam to' | 'futian'
+  crossBorderNotes?: string;       // Customs declaration notes
+
   // Load info
   loads: BookingLoad[];
   totalLoadCount: number;

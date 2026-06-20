@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { colors, sp, rd } from '../styles';
+import { IconPackage, IconLargeTruck, IconCheck, IconUser, IconPhone } from '../components/Icon';
 
 interface OnboardingProps {
   isFirstTime?: boolean;
@@ -64,8 +65,8 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
           <div style={s.sectionLabel}>我想以...</div>
           <div style={s.roleGrid}>
             {([
-              { key: 'renter', emoji: '📦', title: '租用者', desc: '需要運貨/送貨服務' },
-              { key: 'owner', emoji: '🚛', title: '車主', desc: '提供貨Van 服務' },
+              { key: 'renter', emoji: <IconPackage size={32} />, title: '租用者', desc: '需要運貨/送貨服務' },
+              { key: 'owner', emoji: <IconLargeTruck size={32} />, title: '車主', desc: '提供貨Van 服務' },
             ] as const).map(r => (
               <div
                 key={r.key}
@@ -78,7 +79,7 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
                   <span style={s.roleDesc}>{r.desc}</span>
                 </div>
                 {role === r.key && (
-                  <div style={s.roleCheck}>✓</div>
+                  <div style={s.roleCheck}><IconCheck size={16} color={colors.brand} /></div>
                 )}
               </div>
             ))}
@@ -89,7 +90,7 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
 
         {/* Name */}
         <div style={s.field}>
-          <label style={s.label}>👤 姓名</label>
+          <label style={s.label}><IconUser size={14} color={colors.textSecondary} /> 姓名</label>
           <input
             style={s.input}
             placeholder="如何稱呼你？"
@@ -101,7 +102,7 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
 
         {/* Phone */}
         <div style={s.field}>
-          <label style={s.label}>📱 電話（用於司機聯絡）</label>
+          <label style={s.label}><IconPhone size={14} color={colors.textSecondary} /> 電話（用於司機聯絡）</label>
           <input
             style={s.input}
             type="tel"

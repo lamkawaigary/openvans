@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { colors, sp, rd } from '../styles';
 import type { VehicleType } from '../types';
+import { IconMotorcycle, IconTruck, IconLargeTruck } from './Icon';
+
+function VehicleIcon({ type, size = 36 }: { type: VehicleType; size?: number }) {
+  switch (type) {
+    case 'motorcycle': return <IconMotorcycle size={size} color={colors.darkGrey} />;
+    case 'light': return <IconTruck size={size} color={colors.darkGrey} />;
+    case 'truck_5_5t': return <IconLargeTruck size={size} color={colors.darkGrey} />;
+    default: return <IconTruck size={size} color={colors.darkGrey} />;
+  }
+}
 
 interface VehicleSelectSheetProps {
   onBack: () => void;
@@ -10,14 +20,13 @@ interface VehicleSelectSheetProps {
 const VEHICLES: Array<{
   type: VehicleType;
   name: string;
-  icon: string;
   volume: string;
   load: string;
   price: string;
 }> = [
-  { type: 'motorcycle', name: '小巴仔', icon: '🚚', volume: '5.5×4×4 呎', load: '700kg', price: 'HK$80' },
-  { type: 'light', name: '中巴', icon: '🛻', volume: '7×5×5 呎', load: '1000kg', price: 'HK$120' },
-  { type: 'truck_5_5t', name: '大巴', icon: '🚛', volume: '9×6×6 呎', load: '1500kg', price: 'HK$180' },
+  { type: 'motorcycle', name: '小巴仔', volume: '5.5×4×4 呎', load: '700kg', price: 'HK$80' },
+  { type: 'light', name: '中巴', volume: '7×5×5 呎', load: '1000kg', price: 'HK$120' },
+  { type: 'truck_5_5t', name: '大巴', volume: '9×6×6 呎', load: '1500kg', price: 'HK$180' },
 ];
 
 export default function VehicleSelectSheet({ onBack, onNext }: VehicleSelectSheetProps) {
@@ -47,7 +56,7 @@ export default function VehicleSelectSheet({ onBack, onNext }: VehicleSelectShee
               style={selected === v.type ? styles.cardActive : styles.card}
               onClick={() => setSelected(v.type)}
             >
-              <span style={styles.vehicleIcon}>{v.icon}</span>
+              <span style={styles.vehicleIcon}><VehicleIcon type={v.type} size={36} /></span>
               <span style={selected === v.type ? styles.vehicleNameActive : styles.vehicleName}>
                 {v.name}
               </span>

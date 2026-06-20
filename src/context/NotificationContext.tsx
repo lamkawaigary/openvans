@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import { IconInfo, IconSuccess, IconWarning, IconError } from '../components/Icon';
 
 interface Notification {
   id: string;
@@ -88,10 +89,10 @@ function Toast({ notification, onDismiss }: { notification: Notification; onDism
     error: '#b71c1c',
   };
   const iconMap = {
-    info: 'ℹ️',
-    success: '✅',
-    warning: '⚠️',
-    error: '❌',
+    info: IconInfo,
+    success: IconSuccess,
+    warning: IconWarning,
+    error: IconError,
   };
 
   return (
@@ -111,7 +112,7 @@ function Toast({ notification, onDismiss }: { notification: Notification; onDism
       }}
       onClick={onDismiss}
     >
-      <span style={{ fontSize: '18px', flexShrink: 0 }}>{iconMap[notification.type]}</span>
+      <span style={{ flexShrink: 0 }}>{React.createElement(iconMap[notification.type], { size: 18, color: colorMap[notification.type] })}</span>
       <div>
         <div style={{ fontWeight: 700, fontSize: '14px', marginBottom: '2px' }}>
           {notification.title}

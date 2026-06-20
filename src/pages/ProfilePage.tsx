@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { IconLargeTruck, IconPackage, IconChart, IconClipboard, IconLogout, IconUser, IconPhone, IconMail } from '../components/Icon';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -56,7 +57,11 @@ export default function ProfilePage() {
           <>
             <div style={s.userName}>{user.name || '未設定姓名'}</div>
             <div style={s.userRole}>
-              <span style={s.roleBadge}>{user.role === 'owner' ? '🚛 車主' : '📦 租用者'}</span>
+              <span style={s.roleBadge}>
+                {user.role === 'owner'
+                  ? <><IconLargeTruck size={14} color={colors.textSecondary} /> 車主</>
+                  : <><IconPackage size={14} color={colors.textSecondary} /> 租用者</>}
+              </span>
             </div>
           </>
         ) : (
@@ -69,7 +74,7 @@ export default function ProfilePage() {
         <div style={s.cardTitle}>聯絡資料</div>
         <div style={s.field}>
           <div style={s.fieldRow}>
-            <span style={s.fieldIcon}>👤</span>
+            <span style={s.fieldIcon}><IconUser size={20} color={colors.textMuted} /></span>
             <div style={s.fieldContent}>
               <span style={s.fieldLabel}>姓名</span>
               {editing ? (
@@ -83,7 +88,7 @@ export default function ProfilePage() {
         <div style={s.divider} />
         <div style={s.field}>
           <div style={s.fieldRow}>
-            <span style={s.fieldIcon}>📱</span>
+            <span style={s.fieldIcon}><IconPhone size={20} color={colors.textMuted} /></span>
             <div style={s.fieldContent}>
               <span style={s.fieldLabel}>電話</span>
               {editing ? (
@@ -97,7 +102,7 @@ export default function ProfilePage() {
         <div style={s.divider} />
         <div style={s.field}>
           <div style={s.fieldRow}>
-            <span style={s.fieldIcon}>✉️</span>
+            <span style={s.fieldIcon}><IconMail size={20} color={colors.textMuted} /></span>
             <div style={s.fieldContent}>
               <span style={s.fieldLabel}>電郵</span>
               <span style={s.fieldValue}>{user.email || '未設定'}</span>
@@ -112,7 +117,7 @@ export default function ProfilePage() {
         {user.role === 'owner' && (
           <>
             <div style={s.menuItem} onClick={() => navigate('/my-vans')}>
-              <div style={s.menuIconWrap}><span style={s.menuIcon}>🚛</span></div>
+              <div style={s.menuIconWrap}><IconLargeTruck size={20} color={colors.textPrimary} /></div>
               <div style={s.menuText}>
                 <span style={s.menuLabel}>我的貨車</span>
                 <span style={s.menuSub}>管理你的車隊</span>
@@ -120,7 +125,7 @@ export default function ProfilePage() {
               <span style={s.menuArrow}>›</span>
             </div>
             <div style={s.menuItem} onClick={() => navigate('/dashboard')}>
-              <div style={s.menuIconWrap}><span style={s.menuIcon}>📊</span></div>
+              <div style={s.menuIconWrap}><IconChart size={20} color={colors.textPrimary} /></div>
               <div style={s.menuText}>
                 <span style={s.menuLabel}>司機 Dashboard</span>
                 <span style={s.menuSub}>接受訂單、管理行程</span>
@@ -130,7 +135,7 @@ export default function ProfilePage() {
           </>
         )}
         <div style={s.menuItem} onClick={() => navigate('/trips')}>
-          <div style={s.menuIconWrap}><span style={s.menuIcon}>📦</span></div>
+          <div style={s.menuIconWrap}><IconClipboard size={20} color={colors.textPrimary} /></div>
           <div style={s.menuText}>
             <span style={s.menuLabel}>我的貨運訂單</span>
             <span style={s.menuSub}>查看歷史記錄</span>
@@ -141,7 +146,7 @@ export default function ProfilePage() {
 
       {/* Sign out */}
       <button style={s.signOutBtn} onClick={handleSignOut}>
-        🚪 登出
+        <IconLogout size={18} color={colors.error} /> 登出
       </button>
     </div>
   );

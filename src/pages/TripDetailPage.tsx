@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { getBooking, cancelBooking } from '../services/bookings';
+import { IconPackage } from '../components/Icon';
 import type { Booking } from '../types';
 import { colors, sp, rd } from '../styles';
 import { formatDateTime, getStatusBadge, VAN_TYPE_EMOJI } from '../utils/helpers';
@@ -113,7 +114,7 @@ export default function TripDetailPage() {
                 <span style={s.metaValue}>{booking.vehicleTypeRequired}</span>
               </div>
               <div style={s.metaItem}>
-                <span style={s.metaEmoji}>📦</span>
+                <span style={s.metaEmoji}><IconPackage size={16} color={colors.textMuted} /></span>
                 <span style={s.metaLabel}>件數</span>
                 <span style={s.metaValue}>{booking.totalLoadCount} 件</span>
               </div>

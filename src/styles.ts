@@ -38,9 +38,17 @@ export const colors = {
   white: '#F2F2F2',
   black: '#000000',
   overlay: 'rgba(0,0,0,0.4)',
-  shadowSm: '0 1px 3px rgba(0,0,0,0.06)',
-  shadowMd: '0 4px 12px rgba(0,0,0,0.08)',
-  shadowLg: '0 8px 24px rgba(0,0,0,0.12)',
+
+  // Layered Shadows (soft, layered feel)
+  shadowSm: '0 2px 8px rgba(0,0,0,0.08)',
+  shadowMd: '0 4px 16px rgba(0,0,0,0.10)',
+  shadowLg: '0 8px 32px rgba(0,0,0,0.14)',
+  shadowXl: '0 12px 48px rgba(0,0,0,0.18)',
+
+  // Glass effect (translucent)
+  glassSm: 'backdrop-filter: blur(8px); background: rgba(255,255,255,0.72); border: 1px solid rgba(255,255,255,0.4);',
+  glassMd: 'backdrop-filter: blur(16px); background: rgba(255,255,255,0.65); border: 1px solid rgba(255,255,255,0.35);',
+  glassLg: 'backdrop-filter: blur(24px); background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.30);',
 }
 
 // ============================================
@@ -126,12 +134,33 @@ export const bottomNav = {
   paddingBottom: '8px', // safe area for iOS
 }
 
-// Card (default)
+// Card (default) — soft layered shadow + subtle border
 export const card = {
   background: colors.surface,
   borderRadius: rd.lg,
   padding: sp.md,
+  boxShadow: colors.shadowMd,
+  border: '1px solid rgba(0,0,0,0.05)',
+}
+
+// Card elevated — stronger shadow for floating cards
+export const cardElevated = {
+  background: colors.surface,
+  borderRadius: rd.lg,
+  padding: sp.md,
+  boxShadow: colors.shadowLg,
+  border: '1px solid rgba(255,255,255,0.8)',
+}
+
+// Card glass — translucent glass effect
+export const cardGlass = {
+  background: 'rgba(255,255,255,0.72)',
+  backdropFilter: 'blur(16px)',
+  WebkitBackdropFilter: 'blur(16px)',
+  borderRadius: rd.lg,
+  padding: sp.md,
   boxShadow: colors.shadowSm,
+  border: '1px solid rgba(255,255,255,0.5)',
 }
 
 // Input
@@ -149,31 +178,48 @@ export const inputBase = {
   fontFamily: 'Inter, system-ui, sans-serif',
 }
 
-// Primary button
+// Primary button — pill shape with soft shadow
 export const btnPrimary = {
   background: colors.brand,
   color: colors.darkGrey,
   border: 'none',
-  borderRadius: rd.md,
-  padding: `${sp.sm} ${sp.md}`,
+  borderRadius: rd.full,
+  padding: `${sp.sm} ${sp.lg}`,
   fontSize: '15px',
   fontWeight: 700,
   cursor: 'pointer',
   width: '100%' as const,
   textAlign: 'center' as const,
-  transition: 'background 0.15s',
+  transition: 'all 0.2s ease',
+  boxShadow: '0 4px 14px rgba(195,234,79,0.35)',
 }
 
-// Secondary button
+// Primary button ghost (outline pill)
+export const btnPrimaryGhost = {
+  background: 'transparent',
+  color: colors.brand,
+  border: `2px solid ${colors.brand}`,
+  borderRadius: rd.full,
+  padding: `${sp.sm} ${sp.lg}`,
+  fontSize: '15px',
+  fontWeight: 700,
+  cursor: 'pointer',
+  width: '100%' as const,
+  textAlign: 'center' as const,
+  transition: 'all 0.2s ease',
+}
+
+// Secondary button — pill shape
 export const btnSecondary = {
   background: colors.surface,
   color: colors.textPrimary,
   border: `1.5px solid ${colors.border}`,
-  borderRadius: rd.md,
+  borderRadius: rd.full,
   padding: `${sp.sm} ${sp.md}`,
   fontSize: '15px',
   fontWeight: 600,
   cursor: 'pointer',
+  transition: 'all 0.2s ease',
 }
 
 // Pill tag
@@ -212,13 +258,23 @@ export const label = {
 export const styles: Record<string, any> = {
 
   // --- Layout ---
-  pageContainer: { ...page },
+  pageContainer: { ...page, paddingTop: 'calc(56px + env(safe-area-inset-top))' },
   contentArea: {
     paddingTop: '56px',
   },
 
   // --- Header ---
-  headerBar: { ...header },
+  headerBar: { ...header, top: 'env(safe-area-inset-top)' },
+  menuBtn: {
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 4,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: rd.sm,
+  },
   brand: {
     fontFamily: '"Space Grotesk", sans-serif',
     fontSize: '20px',
@@ -395,23 +451,28 @@ export const styles: Record<string, any> = {
 
   // --- Cards ---
   card: { ...card },
+  cardElevated: { ...cardElevated },
+  cardGlass: { ...cardGlass },
   cardActive: {
     ...card,
     border: `2px solid ${colors.brand}`,
+    boxShadow: colors.shadowLg,
   },
 
   // --- Buttons ---
   primaryBtn: { ...btnPrimary },
+  primaryBtnGhost: { ...btnPrimaryGhost },
   secondaryBtn: { ...btnSecondary },
   outlineBtn: {
     background: 'transparent',
     color: colors.brand,
-    border: `1.5px solid ${colors.brand}`,
-    borderRadius: rd.md,
+    border: `2px solid ${colors.brand}`,
+    borderRadius: rd.full,
     padding: `${sp.sm} ${sp.md}`,
     fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
 
   // --- Form Inputs ---

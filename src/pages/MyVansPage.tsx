@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { subscribeToOwnerVans, addVan, updateVan, deleteVan } from '../services/vans';
+import { IconLargeTruck, IconCheck, IconArrowRight, IconLock, IconTrash, IconX } from '../components/Icon';
+import { goOffline, subscribeToDriver } from '../services/drivers';
 import type { Van, VehicleType } from '../types';
 import { colors } from '../styles';
 import { VAN_TYPE_LABELS, VAN_TYPE_EMOJI, VAN_TYPE_CAPACITY } from '../utils/helpers';
@@ -16,6 +18,16 @@ export default function MyVansPage() {
   const [vans, setVans] = useState<Van[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [driverOnlineVanId, setDriverOnlineVanId] = useState<string | null>(null);
+
+  // Track driver online state
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToDriver(user.uid, (state) => {
+      setDriverOnlineVanId(state?.isOnline ? state.currentVanId : null);
+    });
+    return () => unsub();
+  }, [user]);
 
   useEffect(() => {
     if (!user || user.role !== 'owner') {
@@ -49,7 +61,7 @@ export default function MyVansPage() {
           <div style={styles.loading}>載入中…</div>
         ) : vans.length === 0 ? (
           <div style={styles.empty}>
-            <div style={styles.emptyIcon}>🚛</div>
+            <div style={styles.emptyIcon}><IconLargeTruck size={48} color={colors.textMuted} /></div>
             <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>還沒有貨車</div>
             <div style={{ fontSize: '14px', color: colors.textSecondary, marginBottom: '16px' }}>新增你的第一架貨車開始接單</div>
             <button style={styles.addVanBtn} onClick={() => setShowAdd(true)}>+ 新增貨車</button>
@@ -59,9 +71,21 @@ export default function MyVansPage() {
             <VanCard
               key={van.id}
               van={van}
+              isDriverOnline={driverOnlineVanId === van.id}
               onToggleAvailable={async () => {
-                await updateVan(van.id, { isAvailable: !van.isAvailable });
-                showNotification({ title: van.isAvailable ? '已下線' : '已上線', body: '', type: 'info' });
+                if (!user) return;
+                if (driverOnlineVanId === van.id) {
+                  // This van is online — go offline via proper flow
+                  await goOffline(user.uid);
+                  showNotification({ title: '已下線', body: '', type: 'info' });
+                } else if (van.isAvailable) {
+                  // Van is available but driver not on it — navigate to dashboard to go online
+                  navigate('/dashboard');
+                } else {
+                  // Van not available (someone else or this driver offline for this van) — mark available
+                  await updateVan(van.id, { isAvailable: true });
+                  showNotification({ title: '已設為可接單', body: '', type: 'info' });
+                }
               }}
               onDelete={async () => {
                 if (!confirm('確定刪除此貨車？')) return;
@@ -89,8 +113,9 @@ export default function MyVansPage() {
   );
 }
 
-function VanCard({ van, onToggleAvailable, onDelete }: {
+function VanCard({ van, isDriverOnline, onToggleAvailable, onDelete }: {
   van: Van;
+  isDriverOnline: boolean;
   onToggleAvailable: () => void;
   onDelete: () => void;
 }) {
@@ -110,7 +135,7 @@ function VanCard({ van, onToggleAvailable, onDelete }: {
             background: van.isAvailable ? '#e8f5e9' : '#f5f5f5',
             color: van.isAvailable ? '#1b5e20' : '#9e9e9e',
           }}>
-            {van.isAvailable ? '可接單' : '休息中'}
+            {isDriverOnline ? '在線中' : van.isAvailable ? '可接單' : '休息中'}
           </span>
           {van.isVerified && <span style={{ fontSize: '16px' }}>✅</span>}
         </div>
@@ -124,9 +149,9 @@ function VanCard({ van, onToggleAvailable, onDelete }: {
 
       <div style={styles.cardActions}>
         <button style={styles.toggleBtn} onClick={onToggleAvailable}>
-          {van.isAvailable ? '🔒 設為休息' : '✓ 接受訂單'}
+          {isDriverOnline ? <><IconLock size={14} /> 設為休息</> : van.isAvailable ? <><IconArrowRight size={14} /> 前往上線</> : <><IconCheck size={14} /> 接受訂單</>}
         </button>
-        <button style={styles.deleteBtn} onClick={onDelete}>🗑️</button>
+        <button style={styles.deleteBtn} onClick={onDelete}><IconTrash size={16} color={colors.error} /></button>
       </div>
     </div>
   );
@@ -158,7 +183,7 @@ function AddVanModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: Om
       <div style={styles.modal}>
         <div style={styles.modalHeader}>
           <span style={styles.modalTitle}>新增貨車</span>
-          <button style={styles.modalClose} onClick={onClose}>✕</button>
+          <button style={styles.modalClose} onClick={onClose}><IconX size={18} /></button>
         </div>
         <form style={styles.modalForm} onSubmit={handleSubmit}>
           <div style={styles.formField}>

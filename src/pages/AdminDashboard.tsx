@@ -3,6 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { Booking, BookingStatus, Van, User } from '../types';
+import {
+  IconChart, IconClipboard, IconUsers, IconCar, IconDollar,
+  IconTruck, IconCheck, IconClock, IconX, IconUser,
+} from '../components/Icon';
 import { colors, sp, rd } from '../styles';
 import {
   HK_TOLL_CONFIGS,
@@ -32,12 +36,12 @@ function StatCard({ label, value, sub, color }: StatCardProps) {
 }
 
 // ─── Status Badge ─────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<BookingStatus, { label: string; color: string; bg: string }> = {
-  pending:    { label: '⏳ 待接單',    color: '#b45309', bg: '#fef3c7' },
-  confirmed:  { label: '✅ 已確認',    color: '#1d4ed8', bg: '#dbeafe' },
-  in_progress:{ label: '🚚 進行中',   color: '#065f46', bg: '#d1fae5' },
-  completed:  { label: '✔️ 已完成',    color: '#374151', bg: '#f3f4f6' },
-  cancelled:  { label: '✖️ 已取消',    color: '#991b1b', bg: '#fee2e2' },
+const STATUS_CONFIG: Record<BookingStatus, { label: React.ReactNode; color: string; bg: string }> = {
+  pending:    { label: <><IconClock size={12} /> 待接單</>,    color: '#b45309', bg: '#fef3c7' },
+  confirmed:  { label: <><IconCheck size={12} /> 已確認</>,    color: '#1d4ed8', bg: '#dbeafe' },
+  in_progress:{ label: <><IconTruck size={12} /> 進行中</>,   color: '#065f46', bg: '#d1fae5' },
+  completed:  { label: <><IconCheck size={12} /> 已完成</>,    color: '#374151', bg: '#f3f4f6' },
+  cancelled:  { label: <><IconX size={12} /> 已取消</>,    color: '#991b1b', bg: '#fee2e2' },
 };
 
 function StatusBadge({ status }: { status: BookingStatus }) {
@@ -157,13 +161,13 @@ export default function AdminDashboard() {
   const activeTolls = Object.values(tollConfigs).filter(t => t.active);
   const totalTollRevenue = bookings.reduce((sum, b) => sum + (b.fareBreakdown?.tunnelFare || 0), 0);
 
-  const tabs: { key: TabType; label: string }[] = [
-    { key: 'overview', label: '📊 總覽' },
-    { key: 'bookings', label: '📋 訂單' },
-    { key: 'users', label: '👥 用戶' },
-    { key: 'vans', label: '🚐 車輛' },
-    { key: 'billing', label: '💰 計費' },
-    { key: 'tolls', label: '🚇 隧道' },
+  const tabs: { key: TabType; label: React.ReactNode }[] = [
+    { key: 'overview', label: <><IconChart size={14} /> 總覽</> },
+    { key: 'bookings', label: <><IconClipboard size={14} /> 訂單</> },
+    { key: 'users', label: <><IconUsers size={14} /> 用戶</> },
+    { key: 'vans', label: <><IconCar size={14} /> 車輛</> },
+    { key: 'billing', label: <><IconDollar size={14} /> 計費</> },
+    { key: 'tolls', label: '隧道' },
   ];
 
   return (
@@ -220,7 +224,7 @@ export default function AdminDashboard() {
 
               <h2 style={{ ...sectionTitle, marginTop: sp.xl }}>最近待處理訂單</h2>
               {pending.length === 0 ? (
-                <div style={emptyState}>✅ 暫無待處理訂單</div>
+                <div style={emptyState}><IconCheck size={14} color={colors.success} /> 暫無待處理訂單</div>
               ) : (
                 <div style={list}>
                   {pending.slice(0, 5).map(b => (
@@ -291,7 +295,7 @@ export default function AdminDashboard() {
                         color: u.role === 'owner' ? '#065f46' : '#1d4ed8',
                         background: u.role === 'owner' ? '#d1fae5' : '#dbeafe',
                       }}>
-                        {u.role === 'owner' ? '🚚 司機' : u.role === 'admin' ? '👑 管理員' : '👤 乘客'}
+                        {u.role === 'owner' ? <><IconTruck size={12} /> 司機</> : u.role === 'admin' ? '管理員' : <><IconUser size={12} /> 乘客</>}
                       </span>
                       <span style={{
                         ...badge,
@@ -299,7 +303,7 @@ export default function AdminDashboard() {
                         background: u.isActive ? '#d1fae5' : '#fee2e2',
                         marginTop: 4,
                       }}>
-                        {u.isActive ? '✅ 啟用' : '❌ 停用'}
+                        {u.isActive ? <><IconCheck size={12} color={colors.success} /> 啟用</> : <><IconX size={12} color={colors.error} /> 停用</>}
                       </span>
                     </div>
                   </div>
@@ -332,7 +336,7 @@ export default function AdminDashboard() {
                         color: v.isVerified ? '#065f46' : '#b45309',
                         background: v.isVerified ? '#d1fae5' : '#fef3c7',
                       }}>
-                        {v.isVerified ? '✅ 已認證' : '⏳ 待認證'}
+                        {v.isVerified ? <><IconCheck size={12} color={colors.success} /> 已認證</> : <><IconClock size={12} color={colors.warning} /> 待認證</>}
                       </span>
                       <span style={{
                         ...badge,
@@ -340,7 +344,7 @@ export default function AdminDashboard() {
                         background: v.isAvailable ? '#d1fae5' : '#fee2e2',
                         marginTop: 4,
                       }}>
-                        {v.isAvailable ? '✅ 可用' : '❌ 不可用'}
+                        {v.isAvailable ? <><IconCheck size={12} color={colors.success} /> 可用</> : <><IconX size={12} color={colors.error} /> 不可用</>}
                       </span>
                     </div>
                   </div>
@@ -583,7 +587,7 @@ export default function AdminDashboard() {
                           background: toll.active ? '#d1fae5' : '#fee2e2',
                           marginLeft: 4,
                         }}>
-                          {toll.active ? '✅ 啟用' : '❌ 停用'}
+                          {toll.active ? <><IconCheck size={12} color={colors.success} /> 啟用</> : <><IconX size={12} color={colors.error} /> 停用</>}
                         </span>
                       </div>
                     </div>
