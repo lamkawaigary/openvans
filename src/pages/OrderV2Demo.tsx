@@ -218,7 +218,10 @@ export default function OrderV2Demo() {
               setTimeout(() => reject(new Error('getIdToken timeout after 5s')), 5000)
             ),
           ]);
-          console.log('[handleSubmit] getIdToken OK');
+          console.log('[handleSubmit] getIdToken OK — liveUser.uid=', liveUser.uid, 'liveUser.email=', (liveUser as any).email);
+          // Diagnostic: compare liveUser.uid against the actual Firebase auth.uid
+          const authCurrentUser = getAuth().currentUser;
+          console.log('[handleSubmit] DIAG auth.currentUser?.uid=', authCurrentUser?.uid, 'match=', authCurrentUser?.uid === liveUser.uid);
         } catch (tokenErr: any) {
           console.warn('[handleSubmit] getIdToken failed (will still attempt write):', tokenErr?.message);
         }
