@@ -71,8 +71,8 @@ export default function TripsPage() {
             {counts[tab.key] > 0 && (
               <span style={{
                 ...styles.filterPillCount,
-                background: filter === tab.key ? colors.yellow : colors.lightGrey,
-                color: filter === tab.key ? colors.darkGrey : colors.textMuted,
+                background: filter === tab.key ? colors.primary : colors.white,
+                color: filter === tab.key ? colors.brand : colors.textMuted,
               }}>
                 {counts[tab.key]}
               </span>
@@ -122,23 +122,32 @@ export default function TripsPage() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100dvh', background: colors.background, fontFamily: 'Inter, system-ui, sans-serif', position: 'relative' as const },
+  page: {
+    minHeight: '100dvh',
+    background: `linear-gradient(180deg, ${colors.brandLight} 0%, ${colors.background} 240px)`,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    position: 'relative' as const,
+  },
   header: {
     position: 'fixed' as const, top: 0, left: 0, right: 0, height: 56,
-    background: colors.white, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: `0 ${sp.md}`, paddingTop: 'env(safe-area-inset-top)', zIndex: 200, boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+    background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: `0 ${sp.md}`, paddingTop: 'env(safe-area-inset-top)', zIndex: 200,
+    borderBottom: `1px solid ${colors.border}`,
   },
   closeBtn: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' },
   title: { fontSize: 17, fontWeight: 700, color: colors.darkGrey },
   filterPills: {
     display: 'flex', gap: sp.xs, padding: `${sp.sm}px ${sp.md}`,
-    background: colors.white,
+    background: 'transparent',
     marginTop: 56,
   },
   filterPillActive: {
     padding: '5px 14px', borderRadius: rd.full, fontSize: 13, fontWeight: 700,
-    background: colors.yellow, color: colors.darkGrey, cursor: 'pointer', whiteSpace: 'nowrap' as const,
+    background: colors.brand, color: colors.primary, cursor: 'pointer', whiteSpace: 'nowrap' as const,
     display: 'flex', alignItems: 'center', gap: 4,
+    boxShadow: '0 2px 6px rgba(195, 234, 79, 0.4)',
   },
   filterPill: {
     padding: '5px 14px', borderRadius: rd.full, fontSize: 13, fontWeight: 600,
