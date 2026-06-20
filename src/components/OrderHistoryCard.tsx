@@ -50,10 +50,11 @@ const styles: Record<string, React.CSSProperties> = {
     background: colors.white,
     borderRadius: rd.lg,
     padding: `${sp.md}px`,
-    boxShadow: colors.shadowMd,
-    border: '1px solid rgba(0,0,0,0.04)',
+    boxShadow: colors.shadowSm,
+    border: `1px solid ${colors.border}`,
     cursor: 'pointer',
     marginBottom: sp.sm,
+    transition: 'all 0.15s ease',
   },
   topRow: {
     display: 'flex',
