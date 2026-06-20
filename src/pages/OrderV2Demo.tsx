@@ -526,7 +526,7 @@ export default function OrderV2Demo() {
         if (s === 'half' && isFullSheet) cancelSearch();
       }}>
         {isHalf && (
-          <div style={{ padding: '8px 20px 24px' }}>
+          <div style={{ padding: '12px 20px 28px' }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary, marginBottom: 12 }}>📦 落單</div>
 
             {/* Phase 6a-1: Service type tabs */}

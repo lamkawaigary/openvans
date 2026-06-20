@@ -139,7 +139,7 @@ const styles: Record<string, React.CSSProperties> = {
   closeBtn: { background: 'transparent', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center' },
   title: { fontSize: 17, fontWeight: 700, color: colors.darkGrey },
   filterPills: {
-    display: 'flex', gap: sp.xs, padding: `${sp.sm}px ${sp.md}`,
+    display: 'flex', gap: sp.xs, padding: `${sp.md}px ${sp.lg}`,
     background: 'transparent',
     marginTop: 56,
   },
@@ -158,7 +158,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     borderRadius: 10, padding: '1px 6px', fontSize: 11, fontWeight: 700, minWidth: 18,
   },
-  listContent: { padding: `${sp.sm}px ${sp.md}px` },
+  listContent: { padding: `${sp.md}px ${sp.lg}px` },
   loading: { textAlign: 'center' as const, padding: `${sp.xxl} 0`, color: colors.textMuted },
   empty: { textAlign: 'center' as const, padding: `${sp.xxl} ${sp.lg}` },
   emptyIcon: { fontSize: 56, marginBottom: sp.md, opacity: 0.5 },
