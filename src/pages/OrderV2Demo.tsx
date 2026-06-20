@@ -639,7 +639,7 @@ export default function OrderV2Demo() {
             {/* Legacy waypoint list removed in Fix A — waypoint list now renders between pickup and dropoff rows above */}
             {endCoord && (
               <>
-                <div style={{ background: 'linear-gradient(135deg, #F4FBE0 0%, #E8F5C8 100%)', borderRadius: 14, padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, border: `1px solid ${colors.brandLight}` }}>
+                <div style={{ background: `linear-gradient(135deg, ${colors.brandLight} 0%, ${colors.brandLight} 100%)`, borderRadius: 14, padding: '12px 14px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 12, border: `1px solid ${colors.brand}` }}>
                   <div style={{ fontSize: 24 }}>⏱️</div>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, color: colors.textMuted, fontWeight: 500 }}>預計車程</div>
@@ -750,7 +750,8 @@ export default function OrderV2Demo() {
             )}
 
             <div style={{ position: 'sticky', bottom: 0, background: `linear-gradient(to top, ${colors.surface} 80%, transparent)`, paddingTop: 12, paddingBottom: 8, marginTop: 12, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' }}>
-              <button onClick={handleSubmit} disabled={!endCoord || submitting} style={{ width: '100%', background: endCoord && !submitting ? colors.brand : colors.border, color: endCoord && !submitting ? colors.textPrimary : colors.textMuted, border: 'none', borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, cursor: endCoord && !submitting ? 'pointer' : 'not-allowed', minHeight: 52 }}>
+              {/* Sticky submit bar shadow + brand surface tint */}
+              <button onClick={handleSubmit} disabled={!endCoord || submitting} style={{ width: '100%', background: endCoord && !submitting ? colors.brand : colors.border, color: endCoord && !submitting ? colors.textPrimary : colors.textMuted, border: 'none', borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, cursor: endCoord && !submitting ? 'pointer' : 'not-allowed', minHeight: 52, boxShadow: endCoord && !submitting ? '0 4px 12px rgba(195, 234, 79, 0.45)' : 'none', transition: 'all 0.15s' }}>
                 {submitting ? '提交中...' : `確認落單 $${estimatedPrice} →`}
               </button>
             </div>
