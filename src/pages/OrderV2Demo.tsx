@@ -204,8 +204,22 @@ export default function OrderV2Demo() {
     }
     setSubmitting(true);
     try {
-      // Force ID token refresh (catches expired-token case silently before write)
-      try { await liveUser.getIdToken(true); } catch (_) { /* ignore, will surface in createBooking error */ }
+      console.log('[handleSubmit] starting — uid=', liveUser.uid, 'pickup=', startLabel, 'dropoff=', endLabel);
+      // Force ID token refresh with 5s timeout — Fix J v3 prevents hang when
+      // Firebase auth endpoint is slow/unreachable. Without the timeout, this
+      // promise can resolve-never and the entire handleSubmit hangs silently
+      // (no toast, button stuck in submitting state).
+      try {
+        await Promise.race([
+          liveUser.getIdToken(true),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('getIdToken timeout after 5s')), 5000)
+          ),
+        ]);
+        console.log('[handleSubmit] getIdToken OK');
+      } catch (tokenErr: any) {
+        console.warn('[handleSubmit] getIdToken failed (will still attempt write):', tokenErr?.message);
+      }
       // Build pickup time: now + 1h for 即時 mode, or user-picked for 預約
       const finalPickupTime = pickupMode === 'now'
         ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
@@ -249,9 +263,16 @@ export default function OrderV2Demo() {
         notes: '',
       } as any);
       showNotification({ title: '落單成功！', body: `Booking #${id.slice(0, 6)} 已建立`, type: 'success' });
+      console.log('[handleSubmit] SUCCESS — booking id=', id);
       setTimeout(() => navigate('/trips'), 800);
     } catch (err: any) {
-      showNotification({ title: '落單失敗', body: err?.message || '請稍後再試', type: 'error' });
+      console.error('[handleSubmit] FAILED:', err);
+      console.error('[handleSubmit] err.code=', err?.code, 'err.message=', err?.message, 'err.stack=', err?.stack);
+      showNotification({
+        title: '落單失敗',
+        body: err?.message ? `${err.message} (${err?.code || 'no-code'})` : '請稍後再試',
+        type: 'error',
+      });
     } finally {
       setSubmitting(false);
     }

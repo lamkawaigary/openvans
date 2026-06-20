@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSideMenu } from '../context/SideMenuContext';
 import { subscribeToPendingBookings } from '../services/bookings';
-import BookingDrawer from '../components/BookingDrawer';
+import BookingFlow from '../components/BookingFlow';
 import type { Booking } from '../types';
 import { colors, sp } from '../styles';
 
@@ -161,7 +161,7 @@ export default function HomePage() {
 
       {/* Booking Drawer */}
       {showBooking && (
-        <BookingDrawer onClose={() => setShowBooking(false)} />
+        <BookingFlow onClose={() => setShowBooking(false)} />
       )}
     </div>
   );

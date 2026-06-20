@@ -1,14 +1,10 @@
 import {
-  collection,
   doc,
   updateDoc,
   onSnapshot,
   setDoc,
   deleteDoc,
   getDoc,
-  query,
-  where,
-  getDocs,
 } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import type { VehicleType } from '../types';
@@ -152,7 +148,7 @@ export async function goOnline(
       ownerId,
       isOnline: true,
       currentVanId: vanId,
-      vehicleType,
+      vehicleType: vehicleType ?? null,
       currentLat: null,
       currentLng: null,
       updatedAt: new Date().toISOString(),

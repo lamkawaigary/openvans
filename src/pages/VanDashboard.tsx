@@ -1,11 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSideMenu } from '../context/SideMenuContext';
 import { subscribeToOwnerBookings, acceptBooking, startBooking, completeBooking, BookingError } from '../services/bookings';
+import { IconMail, IconLargeTruck, IconCheck, IconPackage, VehicleTypeIcon } from '../components/Icon';
 import { subscribeToDriver, updateLocation, type DriverState } from '../services/drivers';
 import { notifyBookingAccepted, notifyDriverEnRoute, notifyBookingCompleted } from '../services/notifications';
 import type { Booking } from '../types';
-import { colors } from '../styles';
+import { colors, sp, styles } from '../styles';
 import { formatDateTime, getStatusBadge, VAN_TYPE_EMOJI } from '../utils/helpers';
 import OnlineToggle from '../components/OnlineToggle';
 import { toast } from 'sonner';
@@ -20,6 +22,7 @@ function showSuccess(msg: string) {
 
 export default function VanDashboard() {
   const { user } = useAuth();
+  const { openMenu } = useSideMenu();
   const navigate = useNavigate();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -111,69 +114,71 @@ export default function VanDashboard() {
   };
 
   return (
-    <div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(-1)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={colors.darkGrey} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
+    <div style={styles.pageContainer}>
+      {/* ── Unified Top Bar (matches passenger UI) ── */}
+      <div style={styles.headerBar}>
+        <button style={styles.menuBtn} onClick={openMenu}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={colors.darkGrey} strokeWidth="2.5" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <span style={styles.title}>司機 Dashboard</span>
-        <div style={{ width: '40px' }} />
+        <span style={styles.brand}>Open<span style={styles.brandAccent}>Vans</span></span>
+        <div style={{ width: 40 }} />
       </div>
 
-      {/* Online Toggle */}
-      <div style={styles.toggleWrapper}>
+      {/* ── Online Toggle (passenger-style card) ── */}
+      <div style={{ padding: `${sp.md}px ${sp.md}px ${sp.xs}px` }}>
         <OnlineToggle onOnlineStateChange={handleOnlineStateChange} />
       </div>
 
-      {/* Stats */}
-      <div style={styles.statsGrid}>
-        <div style={styles.statCard}>
-          <div style={styles.statNum}>{stats.pending}</div>
-          <div style={styles.statLabel}>新訂單</div>
+      {/* ── Stats Cards (brand green style) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: sp.sm, padding: `0 ${sp.md}px ${sp.md}px` }}>
+        <div style={{ ...styles.card, textAlign: 'center' as const }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: colors.warning }}>{stats.pending}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>新訂單</div>
         </div>
-        <div style={styles.statCard}>
-          <div style={styles.statNum}>{stats.active}</div>
-          <div style={styles.statLabel}>進行中</div>
+        <div style={{ ...styles.card, textAlign: 'center' as const }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: colors.orange }}>{stats.active}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>進行中</div>
         </div>
-        <div style={styles.statCard}>
-          <div style={styles.statNum}>{stats.completed}</div>
-          <div style={styles.statLabel}>已完成</div>
+        <div style={{ ...styles.card, textAlign: 'center' as const }}>
+          <div style={{ fontSize: 26, fontWeight: 800, color: colors.success }}>{stats.completed}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>已完成</div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {([
-          { key: 'new', label: `新訂單 (${newBookings.length})` },
-          { key: 'active', label: `進行中 (${activeBookings.length})` },
-          { key: 'completed', label: `已完成 (${completedBookings.length})` },
-        ] as const).map(t => (
-          <div
-            key={t.key}
-            style={tab === t.key ? styles.tabActive : styles.tab}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </div>
-        ))}
+      {/* ── Tabs (design system) ── */}
+      <div style={{ padding: `0 ${sp.md}px ${sp.sm}px` }}>
+        <div style={styles.tabBar}>
+          {([
+            { key: 'new' as const, label: `新訂單 (${newBookings.length})` },
+            { key: 'active' as const, label: `進行中 (${activeBookings.length})` },
+            { key: 'completed' as const, label: `已完成 (${completedBookings.length})` },
+          ]).map(t => (
+            <div
+              key={t.key}
+              style={tab === t.key ? styles.tabActive : styles.tab}
+              onClick={() => setTab(t.key)}
+            >
+              {t.label}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* List */}
-      <div style={styles.list}>
+      {/* ── List ── */}
+      <div style={{ padding: `0 ${sp.md}px ${sp.xxl}px`, display: 'flex', flexDirection: 'column' as const, gap: sp.sm }}>
         {!isOnline && (
-          <div style={styles.offlineBanner}>
+          <div style={{ ...styles.card, textAlign: 'center' as const, background: colors.warningBg, color: '#92400E', fontWeight: 600, fontSize: 14 }}>
             上線後方可接單
           </div>
         )}
         {loading ? (
-          <div style={styles.loading}>載入中…</div>
+          <div style={styles.emptyState}>載入中…</div>
         ) : display.length === 0 ? (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>{tab === 'new' ? '📭' : tab === 'active' ? '🚛' : '✅'}</div>
-            <div style={{ fontSize: '15px', fontWeight: 700 }}>
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}>{tab === 'new' ? <IconMail size={48} color={colors.textMuted} /> : tab === 'active' ? <IconLargeTruck size={48} color={colors.textMuted} /> : <IconCheck size={48} color={colors.textMuted} />}</div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>
               {tab === 'new' ? (isOnline ? '暫時沒有新訂單' : '請先上線') : tab === 'active' ? '沒有進行中訂單' : '暫時沒有已完成訂單'}
             </div>
           </div>
@@ -189,8 +194,7 @@ export default function VanDashboard() {
                 acceptBooking(b.id, user.uid, driverState.currentVanId)
                   .then(() => {
                     showSuccess('已接受訂單！');
-                    // Notify renter that booking was accepted
-                    notifyBookingAccepted(b.renterId, b.id, user.displayName || '司機', VAN_TYPE_EMOJI[b.vehicleTypeRequired] + ' ' + b.vehicleTypeRequired).catch(() => {});
+                    notifyBookingAccepted(b.renterId, b.id, user.name || '司機', VAN_TYPE_EMOJI[b.vehicleTypeRequired] + ' ' + b.vehicleTypeRequired).catch(() => {});
                   })
                   .catch((err: unknown) => {
                     if (err instanceof BookingError) showError(err.message);
@@ -202,7 +206,6 @@ export default function VanDashboard() {
                 startBooking(b.id, user.uid)
                   .then(() => {
                     showSuccess('已開始送貨！');
-                    // Notify renter that driver is en route
                     notifyDriverEnRoute(b.renterId, b.id).catch(() => {});
                   })
                   .catch((err: unknown) => {
@@ -215,7 +218,6 @@ export default function VanDashboard() {
                 completeBooking(b.id, user.uid)
                   .then(() => {
                     showSuccess('已完成送貨！');
-                    // Notify renter that delivery is complete
                     notifyBookingCompleted(b.renterId, b.id, b.estimatedPrice).catch(() => {});
                   })
                   .catch((err: unknown) => {
@@ -244,74 +246,48 @@ function DashboardCard({ booking, isOwner, isOnline, onAccept, onStart, onComple
   const badge = getStatusBadge(booking.status);
   return (
     <div style={styles.card}>
-      <div style={styles.cardTop}>
-        <span style={{ ...styles.badge, background: badge.bg, color: badge.text }}>{badge.label}</span>
-        <span style={styles.time}>{formatDateTime(booking.pickupTime)}</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: sp.sm }}>
+        <span style={{ ...styles.badge(colors.warningBg, '#92400E'), ...styles.badge(booking.status === 'pending' ? colors.warningBg : booking.status === 'confirmed' ? colors.brandLight : booking.status === 'in_progress' ? colors.successBg : colors.errorBg, booking.status === 'pending' ? '#92400E' : booking.status === 'confirmed' ? colors.brand : booking.status === 'in_progress' ? '#065F46' : colors.error) }}>
+          {badge.label}
+        </span>
+        <span style={{ fontSize: 12, color: colors.textMuted }}>{formatDateTime(booking.pickupTime)}</span>
       </div>
 
-      <div style={styles.routeRow}><div style={styles.dot} /><span>{booking.pickupAddress}</span></div>
-      <div style={styles.routeRow}><div style={{ ...styles.dot, background: colors.primaryBlue }} /><span>{booking.dropoffAddress}</span></div>
+      {/* Route */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: 4 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.textMuted, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 500, color: colors.textPrimary }}>{booking.pickupAddress}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.sm }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.brand, flexShrink: 0 }} />
+        <span style={{ fontSize: 13, fontWeight: 500, color: colors.textPrimary }}>{booking.dropoffAddress}</span>
+      </div>
 
-      <div style={styles.meta}>
-        <span>{VAN_TYPE_EMOJI[booking.vehicleTypeRequired]} 需{booking.vehicleTypeRequired}</span>
-        <span>📦 {booking.totalLoadCount} 件</span>
+      {/* Meta */}
+      <div style={{ display: 'flex', gap: sp.sm, fontSize: 12, color: colors.textSecondary, alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><VehicleTypeIcon vehicleType={booking.vehicleTypeRequired} size={12} color={colors.textMuted} /> {booking.vehicleTypeRequired}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><IconPackage size={12} color={colors.textMuted} /> {booking.totalLoadCount} 件</span>
         {booking.estimatedPrice && (
-          <span style={{ marginLeft: 'auto', fontWeight: 800, fontSize: '16px', color: colors.primaryBlue }}>
+          <span style={{ marginLeft: 'auto', fontWeight: 800, fontSize: 16, color: colors.brand }}>
             HK${booking.estimatedPrice}
           </span>
         )}
       </div>
 
+      {/* Actions */}
       {isOwner && (
-        <div style={styles.actions}>
+        <div style={{ display: 'flex', gap: sp.xs, marginTop: sp.sm, paddingTop: sp.sm, borderTop: `1px solid ${colors.border}` }}>
           {booking.status === 'pending' && isOnline && (
-            <button style={styles.acceptBtn} onClick={onAccept}>
-              ✓ 接受訂單
-            </button>
+            <button style={styles.primaryBtn} onClick={onAccept}><IconCheck size={14} /> 接受訂單</button>
           )}
           {booking.status === 'confirmed' && (
-            <button style={styles.startBtn} onClick={onStart}>
-              🚛 開始送貨
-            </button>
+            <button style={{ ...styles.primaryBtn, background: colors.orange, color: '#fff' }} onClick={onStart}><IconLargeTruck size={14} /> 開始送貨</button>
           )}
           {booking.status === 'in_progress' && (
-            <button style={styles.completeBtn} onClick={onComplete}>
-              ✅ 完成送貨
-            </button>
+            <button style={{ ...styles.primaryBtn, background: colors.success, color: '#fff' }} onClick={onComplete}><IconCheck size={14} /> 完成送貨</button>
           )}
         </div>
       )}
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100dvh', background: colors.background, fontFamily: 'Inter, system-ui, sans-serif', paddingBottom: '20px' },
-  header: { position: 'fixed' as const, top: 0, left: 0, right: 0, height: '56px', background: colors.white, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', paddingTop: 'env(safe-area-inset-top)', zIndex: 200, boxShadow: `0 1px 3px ${colors.border}` },
-  backBtn: { background: 'transparent', border: 'none', cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center' },
-  title: { fontSize: '16px', fontWeight: 700, color: colors.darkGrey },
-  toggleWrapper: { paddingTop: 'max(68px, calc(56px + env(safe-area-inset-top)))', paddingLeft: 16, paddingRight: 16, paddingBottom: 4 },
-  statsGrid: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, paddingTop: 8, paddingLeft: 16, paddingRight: 16, paddingBottom: 12 },
-  statCard: { background: colors.surface, borderRadius: '16px', padding: '16px 12px', textAlign: 'center' as const },
-  statNum: { fontSize: '28px', fontWeight: 800, color: colors.primaryBlue },
-  statLabel: { fontSize: '12px', color: colors.textSecondary, fontWeight: 600, marginTop: '2px' },
-  tabs: { display: 'flex', gap: '4px', padding: '4px', background: colors.border, borderRadius: '12px', margin: '0 16px' },
-  tab: { flex: 1, padding: '8px 4px', textAlign: 'center' as const, fontSize: '12px', fontWeight: 600, borderRadius: '8px', cursor: 'pointer', color: colors.textSecondary },
-  tabActive: { flex: 1, padding: '8px 4px', textAlign: 'center' as const, fontSize: '12px', fontWeight: 600, borderRadius: '8px', cursor: 'pointer', background: colors.surface, color: colors.textPrimary, boxShadow: '0 1px 2px rgba(0,0,0,0.08)' },
-  list: { padding: '12px 16px', display: 'flex', flexDirection: 'column' as const, gap: '10px' },
-  offlineBanner: { textAlign: 'center' as const, padding: '12px', background: '#fff3e0', color: '#e65100', borderRadius: '8px', fontSize: '14px', fontWeight: 600 },
-  loading: { textAlign: 'center' as const, padding: '40px', color: colors.textMuted },
-  empty: { textAlign: 'center' as const, padding: '40px 20px' },
-  emptyIcon: { fontSize: '40px', marginBottom: '8px', opacity: 0.5 },
-  card: { background: colors.surface, borderRadius: '16px', padding: '14px', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
-  cardTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' },
-  badge: { padding: '3px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 },
-  time: { fontSize: '12px', color: colors.textSecondary },
-  routeRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', fontSize: '13px', fontWeight: 500 },
-  dot: { width: '10px', height: '10px', borderRadius: '50%', background: colors.textMuted, flexShrink: 0 },
-  meta: { display: 'flex', gap: '10px', fontSize: '12px', color: colors.textSecondary, marginTop: '8px', alignItems: 'center' },
-  actions: { display: 'flex', gap: '8px', marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${colors.border}` },
-  acceptBtn: { flex: 1, background: colors.primaryBlue, color: colors.darkGrey, border: 'none', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
-  startBtn: { flex: 1, background: '#ff9800', color: 'white', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
-  completeBtn: { flex: 1, background: colors.success, color: 'white', border: 'none', borderRadius: '10px', padding: '10px', fontSize: '13px', fontWeight: 700, cursor: 'pointer' },
-};

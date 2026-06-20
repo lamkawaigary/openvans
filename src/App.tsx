@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoadScriptNext } from '@react-google-maps/api';
 import { GOOGLE_MAPS_API_KEY } from './firebase/config';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage';
 import OnboardingPage from './pages/OnboardingPage';
 import PublishPage from './pages/PublishPage';
 import TripsPage from './pages/TripsPage';
+import OrderV2Demo from './pages/OrderV2Demo';
 import TripDetailPage from './pages/TripDetailPage';
 import ProfilePage from './pages/ProfilePage';
 import VanDashboard from './pages/VanDashboard';
@@ -46,10 +47,10 @@ function AppShell() {
           </RouteGuard>
         } />
 
-        {/* Home — renter/admin see map, owner redirected to driver-jobs in HomePage */}
+        {/* 官網根 = 叫車畫面 (renter/admin), owner 跳 driver-jobs, 未登入跳 /login */}
         <Route path="/" element={
           <RouteGuard allowedRoles={['renter', 'admin']} fallback="/driver-jobs">
-            <HomePage />
+            <OrderV2Demo />
           </RouteGuard>
         } />
 
@@ -109,6 +110,15 @@ function AppShell() {
             <AdminDashboard />
           </AdminRoute>
         } />
+
+        {/* 正式生產 — 唯一叫車途徑 (OrderV2Demo, 同 / 一樣 auth) */}
+        <Route path="/order" element={
+          <RouteGuard allowedRoles={['renter', 'admin']} fallback="/driver-jobs">
+            <OrderV2Demo />
+          </RouteGuard>
+        } />
+        {/* 舊 /order-v2 自動 redirect 去 /order (向後兼容, 之後可以拎走) */}
+        <Route path="/order-v2" element={<Navigate to="/order" replace />} />
 
         {/* Catch-all — owner → driver-jobs, others → home */}
         <Route path="*" element={

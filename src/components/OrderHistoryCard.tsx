@@ -50,7 +50,8 @@ const styles: Record<string, React.CSSProperties> = {
     background: colors.white,
     borderRadius: rd.lg,
     padding: `${sp.md}px`,
-    boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+    boxShadow: colors.shadowMd,
+    border: '1px solid rgba(0,0,0,0.04)',
     cursor: 'pointer',
     marginBottom: sp.sm,
   },
@@ -79,10 +80,11 @@ const styles: Record<string, React.CSSProperties> = {
     gap: sp.sm,
   },
   statusBadge: {
-    padding: '3px 10px',
+    padding: '4px 14px',
     borderRadius: rd.full,
     fontSize: 12,
-    fontWeight: 600,
+    fontWeight: 700,
+    letterSpacing: '0.02em',
   },
   price: {
     fontSize: 16,

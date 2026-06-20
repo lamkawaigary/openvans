@@ -15,7 +15,7 @@ export default function BottomNav() {
     { path: '/driver-jobs', icon: '📋', label: '搶單' },
     { path: '/trips', icon: '📋', label: '行程' },
     { path: '/my-vans', icon: '🚚', label: '我的Van' },
-    { path: '/profile', icon: '👤', label: '我的' },
+    { path: '/profile', icon: '👤', label: '我的', accent: false },
   ];
 
   const renterItems = [

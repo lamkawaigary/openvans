@@ -1,12 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSideMenu } from '../context/SideMenuContext';
 import { subscribeToPendingBookings, acceptBooking, BookingError } from '../services/bookings';
 import { subscribeToDriver, type DriverState } from '../services/drivers';
 import { notifyBookingAccepted } from '../services/notifications';
 import type { Booking } from '../types';
-import { colors } from '../styles';
+import { colors, sp, styles } from '../styles';
 import { formatPickupTime, VAN_TYPE_EMOJI, VAN_TYPE_LABELS } from '../utils/helpers';
+import {
+  IconDot,
+  IconCheck,
+  IconPackage,
+  IconTruck,
+  IconLargeTruck,
+  IconMotorcycle,
+} from '../components/Icon';
+import type { VehicleType } from '../types';
+
+function VehicleTypeIcon({ type, size = 20, color }: { type: VehicleType; size?: number; color?: string }) {
+  switch (type) {
+    case 'motorcycle': return <IconMotorcycle size={size} color={color} />;
+    case 'light': return <IconTruck size={size} color={color} />;
+    case 'truck_5_5t': return <IconLargeTruck size={size} color={color} />;
+    default: return <IconTruck size={size} color={color} />;
+  }
+}
 import { toast } from 'sonner';
 
 function showError(msg: string) {
@@ -18,6 +37,7 @@ function showSuccess(msg: string) {
 
 export default function DriverJobsPage() {
   const { user } = useAuth();
+  const { openMenu } = useSideMenu();
   const navigate = useNavigate();
   const [allPending, setAllPending] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +91,7 @@ export default function DriverJobsPage() {
       notifyBookingAccepted(
         booking.renterId,
         booking.id,
-        user.displayName || '司機',
+        user.name || '司機',
         VAN_TYPE_EMOJI[booking.vehicleTypeRequired] + ' ' + VAN_TYPE_LABELS[booking.vehicleTypeRequired]
       ).catch(() => {});
     } catch (err: unknown) {
@@ -83,71 +103,70 @@ export default function DriverJobsPage() {
   };
 
   return (
-<div style={styles.page}>
-      {/* Header */}
-      <div style={styles.header}>
-        <button style={styles.backBtn} onClick={() => navigate(-1)}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={colors.darkGrey} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
+    <div style={styles.pageContainer}>
+      {/* ── Unified Top Bar ── */}
+      <div style={styles.headerBar}>
+        <button style={styles.menuBtn} onClick={openMenu}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={colors.darkGrey} strokeWidth="2.5" strokeLinecap="round">
+            <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
-        <span style={styles.title}>📋 訂單公海</span>
-        <div style={{ width: '40px' }} />
+        <span style={styles.brand}>Open<span style={styles.brandAccent}>Vans</span></span>
+        <div style={{ width: 40 }} />
       </div>
 
-      {/* Online status banner */}
-      <div style={styles.bannerWrapper}>
+      {/* ── Online Status Banner ── */}
+      <div style={{ padding: `${sp.md}px ${sp.md}px 0` }}>
         {!isOnline ? (
-          <div style={styles.offlineBanner}>
-            <span>🔴 請先上線再接單</span>
-            <button style={styles.goOnlineBtn} onClick={() => navigate('/dashboard')}>
-              去上線
-</button>
+          <div style={{ ...styles.card, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: colors.warningBg }}>
+            <span style={{ fontWeight: 600, color: '#92400E', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}><IconDot size={12} color="#DC2626" /> 請先上線再接單</span>
+            <button
+              style={{ background: colors.warning, color: '#fff', border: 'none', borderRadius: rd.sm, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              onClick={() => navigate('/dashboard')}
+            >去上線</button>
           </div>
         ) : (
-          <div style={styles.onlineBanner}>
-            <span>🟢 已上線 · {VAN_TYPE_EMOJI[driverState?.vehicleType!]} {VAN_TYPE_LABELS[driverState?.vehicleType!]}</span>
+          <div style={{ ...styles.card, display: 'flex', alignItems: 'center', gap: sp.xs, background: colors.successBg }}>
+            <span style={{ fontSize: 14, fontWeight: 600, color: '#065F46', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <IconDot size={12} color="#10B981" /> 已上線 · <VehicleTypeIcon type={driverState?.vehicleType!} size={16} /> {VAN_TYPE_LABELS[driverState?.vehicleType!]}
+            </span>
           </div>
         )}
       </div>
 
-      {/* Stats bar */}
-      <div style={styles.statsBar}>
-        <div style={styles.statItem}>
-          <span style={styles.statNum}>{matchingBookings.length}</span>
-          <span style={styles.statLabel}>可接訂單</span>
+      {/* ── Stats Bar ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: sp.sm, padding: `${sp.sm}px ${sp.md}px ${sp.sm}px` }}>
+        <div style={{ ...styles.card, textAlign: 'center' as const }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: colors.brand }}>{matchingBookings.length}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>可接訂單</div>
         </div>
-        <div style={styles.statDivider} />
-        <div style={styles.statItem}>
-          <span style={styles.statNum}>{allPending.length}</span>
-          <span style={styles.statLabel}>全城待接</span>
+        <div style={{ ...styles.card, textAlign: 'center' as const }}>
+          <div style={{ fontSize: 24, fontWeight: 800, color: colors.textPrimary }}>{allPending.length}</div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>全城待接</div>
         </div>
         {driverState?.vehicleType && (
-          <>
-            <div style={styles.statDivider} />
-            <div style={styles.statItem}>
-              <span style={styles.statNum}>{VAN_TYPE_EMOJI[driverState.vehicleType]}</span>
-              <span style={styles.statLabel}>你的車型</span>
-            </div>
-          </>
+          <div style={{ ...styles.card, textAlign: 'center' as const }}>
+            <VehicleTypeIcon type={driverState.vehicleType} size={24} color={colors.brand} />
+            <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>你的車型</div>
+          </div>
         )}
       </div>
 
-      {/* List */}
-      <div style={styles.list}>
+      {/* ── List ── */}
+      <div style={{ padding: `0 ${sp.md}px ${sp.xxl}px`, display: 'flex', flexDirection: 'column' as const, gap: sp.sm }}>
         {loading ? (
-          <div style={styles.loading}>載入中…</div>
+          <div style={styles.emptyState}>載入中…</div>
         ) : !isOnline ? (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>🔌</div>
-            <div style={styles.emptyTitle}>司機未上線</div>
-            <div style={styles.emptyDesc}>請先在司機 Dashboard 上線，才能接單</div>
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}><IconDot size={32} color={colors.textMuted} /></div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>司機未上線</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginTop: 4 }}>請先在司機 Dashboard 上線，才能接單</div>
           </div>
         ) : matchingBookings.length === 0 ? (
-          <div style={styles.empty}>
-            <div style={styles.emptyIcon}>📭</div>
-            <div style={styles.emptyTitle}>暫時沒有合適訂單</div>
-            <div style={styles.emptyDesc}>全城仲有 {allPending.length} 張單，但唔啱你架車型</div>
+          <div style={styles.emptyState}>
+            <div style={styles.emptyIcon}><IconPackage size={32} color={colors.textMuted} /></div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>暫時沒有合適訂單</div>
+            <div style={{ fontSize: 13, color: colors.textSecondary, marginTop: 4 }}>全城仲有 {allPending.length} 張單，但唔啱你架車型</div>
           </div>
         ) : (
           matchingBookings.map(b => (
@@ -165,272 +184,62 @@ export default function DriverJobsPage() {
   );
 }
 
-interface JobCardProps {
+function JobCard({ booking, isOnline, isAccepting, onAccept }: {
   booking: Booking;
   isOnline: boolean;
   isAccepting: boolean;
   onAccept: () => void;
-}
-
-function JobCard({ booking, isOnline, isAccepting, onAccept }: JobCardProps) {
+}) {
   return (
     <div style={styles.card}>
       {/* Top row */}
-      <div style={styles.cardTop}>
-        <div style={styles.vehicleBadge}>
-          {VAN_TYPE_EMOJI[booking.vehicleTypeRequired]} {VAN_TYPE_LABELS[booking.vehicleTypeRequired]}
-</div>
-        <div style={styles.pickupTime}>
-          🕐 {formatPickupTime(booking.pickupTime)}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: sp.sm }}>
+        <div style={{ ...styles.badge(colors.brandLight, colors.brand), display: 'flex', alignItems: 'center', gap: 4 }}>
+          <VehicleTypeIcon type={booking.vehicleTypeRequired} size={16} /> {VAN_TYPE_LABELS[booking.vehicleTypeRequired]}
+        </div>
+        <div style={{ fontSize: 12, color: colors.textMuted }}>
+          {formatPickupTime(booking.pickupTime)}
         </div>
       </div>
 
       {/* Route */}
-      <div style={styles.routeBlock}>
-        <div style={styles.routeRow}>
-          <div style={{ ...styles.routeDot, background: colors.textMuted }} />
-          <span style={styles.routeAddr}>{booking.pickupAddress}</span>
+      <div style={{ marginBottom: sp.sm }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: 4 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.textMuted, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: colors.textPrimary }}>{booking.pickupAddress}</span>
         </div>
-        <div style={styles.routeLine} />
-        <div style={styles.routeRow}>
-          <div style={{ ...styles.routeDot, background: colors.primaryBlue }} />
-          <span style={styles.routeAddr}>{booking.dropoffAddress}</span>
+        <div style={{ width: 2, height: 12, background: colors.border, marginLeft: 4 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.brand, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: colors.textPrimary }}>{booking.dropoffAddress}</span>
         </div>
       </div>
 
       {/* Meta */}
-      <div style={styles.meta}>
-        <span>📦 {booking.totalLoadCount} 件</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, fontSize: 12, color: colors.textSecondary, marginBottom: sp.sm }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><IconPackage size={14} color={colors.textSecondary} /> {booking.totalLoadCount} 件</span>
         {booking.estimatedPrice && (
-          <span style={styles.price}>HK${booking.estimatedPrice}</span>
+          <span style={{ marginLeft: 'auto', fontWeight: 800, fontSize: 16, color: colors.brand }}>
+            HK${booking.estimatedPrice}
+          </span>
         )}
       </div>
 
       {/* Accept button */}
       <button
         style={{
-          ...styles.acceptBtn,
+          ...styles.primaryBtn,
           opacity: !isOnline || isAccepting ? 0.5 : 1,
+          background: colors.brand,
         }}
         disabled={!isOnline || isAccepting}
         onClick={onAccept}
       >
-        {isAccepting ? '接單中…' : '✓ 接單'}
+        {isAccepting ? '接單中…' : <><IconCheck size={16} color={colors.white} /> 接單</>}
       </button>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: '100dvh',
-    background: colors.background,
-    fontFamily: 'Inter, system-ui, sans-serif',
-    paddingBottom: '24px',
-  },
-  header: {
-    position: 'fixed' as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    height: '56px',
-    background: colors.white,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '0 16px',
-    paddingTop: 'env(safe-area-inset-top)',
-    zIndex: 200,
-    boxShadow: `0 1px 3px ${colors.border}`,
-  },
-  backBtn: {
-    background: 'transparent',
-    border: 'none',
-    cursor: 'pointer',
-    padding: '4px',
-    display: 'flex',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: '16px',
-    fontWeight: 700,
-    color: colors.darkGrey,
-  },
-  bannerWrapper: {
-    paddingTop: 'max(68px, calc(56px + env(safe-area-inset-top)))',
-    paddingLeft: 16,
-    paddingRight: 16,
-    paddingBottom: 4,
-  },
-  offlineBanner: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: '10px 14px',
-    background: '#fff3e0',
-    borderRadius: '12px',
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#e65100',
-  },
-  onlineBanner: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '10px 14px',
-    background: '#e8f5e9',
-    borderRadius: '12px',
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#1b5e20',
-  },
-  goOnlineBtn: {
-    background: '#e65100',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    padding: '6px 12px',
-    fontSize: '12px',
-    fontWeight: 700,
-    cursor: 'pointer',
-  },
-  statsBar: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 0,
-    padding: '8px 16px',
-    background: colors.surface,
-    borderBottom: `1px solid ${colors.border}`,
-  },
-  statItem: {
-    flex: 1,
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: 2,
-  },
-  statNum: {
-    fontSize: '20px',
-    fontWeight: 800,
-    color: colors.primaryBlue,
-  },
-  statLabel: {
-    fontSize: '11px',
-    color: colors.textSecondary,
-    fontWeight: 600,
-  },
-  statDivider: {
-    width: '1px',
-    height: '28px',
-    background: colors.border,
-  },
-  list: {
-    padding: '12px 16px',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '10px',
-  },
-  loading: {
-    textAlign: 'center' as const,
-    padding: '40px',
-    color: colors.textMuted,
-  },
-  empty: {
-    textAlign: 'center' as const,
-    padding: '48px 20px',
-  },
-  emptyIcon: {
-    fontSize: '48px',
-    marginBottom: '12px',
-    opacity: 0.6,
-  },
-  emptyTitle: {
-    fontSize: '16px',
-    fontWeight: 700,
-    color: colors.textPrimary,
-    marginBottom: '6px',
-  },
-  emptyDesc: {
-    fontSize: '13px',
-    color: colors.textSecondary,
-  },
-  card: {
-    background: colors.surface,
-    borderRadius: '16px',
-    padding: '14px',
-    boxShadow: `0 1px 3px rgba(0,0,0,0.06)`,
-  },
-  cardTop: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: '12px',
-  },
-  vehicleBadge: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    padding: '4px 10px',
-    background: '#e3f2fd',
-    borderRadius: '20px',
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#0d47a1',
-  },
-  pickupTime: {
-    fontSize: '12px',
-    color: colors.textSecondary,
-    fontWeight: 500,
-  },
-  routeBlock: {
-    marginBottom: '10px',
-  },
-  routeRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  routeDot: {
-    width: '10px',
-    height: '10px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  routeLine: {
-    width: '2px',
-    height: '14px',
-    background: colors.border,
-    marginLeft: '4px',
-    marginTop: '2px',
-    marginBottom: '2px',
-  },
-  routeAddr: {
-    fontSize: '13px',
-    fontWeight: 500,
-    color: colors.textPrimary,
-  },
-  meta: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    fontSize: '12px',
-    color: colors.textSecondary,
-    marginBottom: '12px',
-  },
-  price: {
-    marginLeft: 'auto',
-    fontSize: '16px',
-    fontWeight: 800,
-    color: colors.primaryBlue,
-  },
-  acceptBtn: {
-    width: '100%',
-    background: colors.primaryBlue,
-    color: colors.darkGrey,
-    border: 'none',
-    borderRadius: '10px',
-    padding: '12px',
-    fontSize: '14px',
-    fontWeight: 700,
-    cursor: 'pointer',
-  },
-};
+// Need rd here
+const rd = { sm: 8, md: 12, lg: 16, xl: 20, full: 9999 };

@@ -17,7 +17,10 @@ import type { Van } from '../types';
 export function subscribeToVans(callback: (vans: Van[]) => void) {
   const q = query(collection(db, 'vans'), where('isAvailable', '==', true));
   return onSnapshot(q, snap => {
-    const vans = snap.docs.map(d => ({ id: d.id, ...d.data() } as Van));
+    const vans = snap.docs.map(d => {
+      const data = d.data();
+      return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
+    });
     callback(vans);
   });
 }
@@ -26,7 +29,10 @@ export function subscribeToVans(callback: (vans: Van[]) => void) {
 export function subscribeToOwnerVans(ownerId: string, callback: (vans: Van[]) => void) {
   const q = query(collection(db, 'vans'), where('ownerId', '==', ownerId));
   return onSnapshot(q, snap => {
-    const vans = snap.docs.map(d => ({ id: d.id, ...d.data() } as Van));
+    const vans = snap.docs.map(d => {
+      const data = d.data();
+      return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
+    });
     callback(vans);
   });
 }

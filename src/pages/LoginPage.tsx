@@ -1,8 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { IconPackage, IconLargeTruck } from '../components/Icon';
 import { useNavigate } from 'react-router-dom';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { colors } from '../styles';
@@ -13,17 +11,20 @@ export default function LoginPage() {
   const { showNotification } = useNotification();
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
-  // Already logged in → go home (onboarding check happens there)
+  // Already logged in → route based on stored role.
+  // Existing users with role=owner → /driver-jobs; renter/admin → / (叫車畫面).
+  // New Google sign-in (no user doc) → /onboarding to pick role.
   useEffect(() => {
     if (!user) return;
-    // Check if this is a returning Google sign-in (role stored in sessionStorage)
-    const savedRole = sessionStorage.getItem('google_signin_role');
-    if (savedRole) {
-      // New Google user returning from redirect → onboarding
-      sessionStorage.removeItem('google_signin_role');
+    // Heuristic: if phone is empty AND createdAt is within the last minute,
+    // treat as new user and route to onboarding.
+    const isNewUser = !user.phone && user.createdAt &&
+      (Date.now() - new Date(user.createdAt).getTime()) < 60_000;
+    if (isNewUser) {
       navigate('/onboarding');
+    } else if (user.role === 'owner') {
+      navigate('/driver-jobs');
     } else {
-      // Normal email login or existing user
       navigate('/');
     }
   }, [user]);
@@ -42,12 +43,11 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
 
   // Mount a real Google Sign-In button (rendered by Google Identity Services).
-  // This replaces the previous One Tap UX which was hidden in the corner and
-  // could leave the loading state stuck if dismissed.
+  // Role is NOT collected on sign-in — the stored role (or default 'renter' for
+  // new users) comes from the Firestore user doc. New users are routed to
+  // /onboarding by the user-effect above to pick their role.
   useEffect(() => {
     if (!googleButtonRef.current) return;
-    // Stash the chosen role so the post-auth flow can route to /onboarding
-    sessionStorage.setItem('google_signin_role', role);
     let cancelled = false;
     (async () => {
       try {
@@ -61,8 +61,7 @@ export default function LoginPage() {
       }
     })();
     return () => { cancelled = true; };
-    // Re-mount the button when role changes (signup flow shows/hides role selector)
-  }, [role, renderGoogleButton, showNotification]);
+  }, [renderGoogleButton, showNotification]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,10 +71,7 @@ export default function LoginPage() {
       if (isLogin) {
         await signIn(email, password);
         showNotification({ title: '登入成功', body: '歡迎回來！', type: 'success' });
-        // Fetch fresh role from Firestore (user state updates asynchronously)
-        const userDoc = await getDoc(doc(db, 'users', auth.currentUser!.uid));
-        const role = userDoc.data()?.role as string | undefined;
-        navigate(role === 'owner' ? '/driver-jobs' : '/');
+        // Routing handled by the user-effect above based on stored role.
       } else {
         await signUp(email, password, name, phone, role);
         showNotification({ title: '註冊成功', body: '歡迎加入 OpenVan！', type: 'success' });

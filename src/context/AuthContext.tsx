@@ -17,7 +17,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, phone: string, role: 'owner' | 'renter') => Promise<void>;
-  signInWithGoogle: (role: 'owner' | 'renter') => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
   /** Initialize GIS + render a real Google Sign-In button into the given container. */
   renderGoogleButton: (
     container: HTMLElement,
@@ -63,6 +63,8 @@ declare global {
 }
 
 let gisLoadPromise: Promise<void> | null = null;
+let gisInitPromise: Promise<string> | null = null;
+let gisInitializedClientId: string | null = null;
 
 function loadGIS(): Promise<void> {
   if (gisLoadPromise) return gisLoadPromise;
@@ -85,6 +87,97 @@ function loadGIS(): Promise<void> {
   return gisLoadPromise;
 }
 
+/**
+ * Initialize Google Identity Services exactly once at module scope.
+ * This guarantees the callback is registered before any page-load fragment
+ * (#id_token=...) is parsed, which is essential for the incognito / ITP
+ * fallback where Google opens a NEW tab and navigates it back to the
+ * origin with the id_token in the URL fragment.
+ */
+async function ensureGISInitialized(
+  clientId: string,
+  onError?: (message: string) => void
+): Promise<string> {
+  if (gisInitPromise && gisInitializedClientId === clientId) {
+    return gisInitPromise;
+  }
+
+  gisInitPromise = (async () => {
+    await loadGIS();
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: async (response) => {
+        // GIS calls this for both popup mode and redirect-mode fragment
+        // delivery. The fragment path is what fires in incognito.
+        console.log('[GoogleLogin] GIS callback fired', {
+          hasCredential: !!response.credential,
+          error: response.error,
+        });
+        // Notify legacy signInWithGoogle() consumers via a DOM event.
+        window.dispatchEvent(
+          new CustomEvent('google-signin-result', { detail: response })
+        );
+        if (response.error) {
+          const msg = response.error || 'unknown_error';
+          console.error('[GoogleLogin] GIS callback error:', msg);
+          onError?.(msg);
+          return;
+        }
+        if (!response.credential) {
+          const msg = 'No credential received from Google';
+          console.error('[GoogleLogin]', msg);
+          onError?.(msg);
+          return;
+        }
+        try {
+          // Lazy import to avoid circular deps and to keep this module
+          // loadable outside of the React tree (e.g. from main.tsx).
+          const { auth } = await import('../firebase/config');
+          const { GoogleAuthProvider, signInWithCredential: fbSignIn } =
+            await import('firebase/auth');
+          const credential = GoogleAuthProvider.credential(response.credential);
+          await fbSignIn(auth, credential);
+          console.log('[GoogleLogin] Firebase signInWithCredential OK');
+        } catch (err: any) {
+          console.error('[GoogleLogin] Firebase signInWithCredential error:', err);
+          onError?.(err?.message || 'Firebase sign-in failed');
+        }
+      },
+    });
+    gisInitializedClientId = clientId;
+    return clientId;
+  })();
+
+  return gisInitPromise;
+}
+
+/**
+ * Parse #id_token=... on page load. GIS library should normally do this
+ * itself, but in some browser/storage contexts (incognito, third-party
+ * cookie blocking) it silently drops the fragment. This is a safety net.
+ */
+export async function handleAuthFragmentOnLoad(): Promise<void> {
+  if (!window.location.hash.includes('id_token=')) return;
+  try {
+    const params = new URLSearchParams(window.location.hash.substring(1));
+    const idToken = params.get('id_token');
+    if (!idToken) return;
+    // Ensure GIS is loaded so the singleton callback can also process the
+    // same fragment (idempotent). Then immediately call our handler.
+    await loadGIS();
+    const { auth } = await import('../firebase/config');
+    const { GoogleAuthProvider, signInWithCredential: fbSignIn } =
+      await import('firebase/auth');
+    const credential = GoogleAuthProvider.credential(idToken);
+    await fbSignIn(auth, credential);
+    console.log('[GoogleLogin] handleAuthFragmentOnLoad: signed in');
+    // Clean the URL fragment so a refresh doesn't re-trigger.
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  } catch (err) {
+    console.error('[GoogleLogin] handleAuthFragmentOnLoad error:', err);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -99,14 +192,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (userDoc.exists()) {
           setUser({ uid: firebaseUser.uid, ...userDoc.data() } as User);
         } else {
-          const savedRole = sessionStorage.getItem('google_signin_role') as 'owner' | 'renter' | null;
-          const role = savedRole || 'renter';
-          sessionStorage.removeItem('google_signin_role');
+          // New Google sign-in: create user doc with default role 'renter'.
+          // Caller is expected to redirect to /onboarding to let the user pick.
           const newUser: Omit<User, 'uid'> = {
             name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
             email: firebaseUser.email || '',
             phone: '',
-            role,
+            role: 'renter',
             isActive: true,
             createdAt: new Date().toISOString(),
           };
@@ -149,36 +241,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ uid: firebaseUser.uid, ...newUser });
   };
 
-  const signInWithGoogle = async (role: 'owner' | 'renter') => {
-    // Kept for backward compatibility — LoginPage now uses renderGoogleButton().
-    // Triggers the One Tap flow directly (no rendering required).
-    sessionStorage.setItem('google_signin_role', role);
-    await loadGIS();
+  const signInWithGoogle = async (): Promise<void> => {
+    // Sign in with Google using One Tap. No role parameter is required —
+    // existing users have their role stored in Firestore and the onAuthStateChanged
+    // listener will load it automatically. New users get a default 'renter' role
+    // and should be redirected to /onboarding by the caller to pick their role.
     const clientId = await getGoogleClientId();
     if (!clientId) {
       throw new Error('Google OAuth client ID not found.');
     }
+    // Reuse the hoisted singleton init so the callback is shared with
+    // renderGoogleButton. We then wait for our singleton callback to
+    // resolve the promise.
+    await ensureGISInitialized(clientId);
     return new Promise<void>((resolve, reject) => {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: async (response) => {
-          if (response.error) {
-            reject(new Error(response.error));
-            return;
-          }
-          if (!response.credential) {
-            reject(new Error('No credential received from Google'));
-            return;
-          }
-          try {
-            const credential = GoogleAuthProvider.credential(response.credential);
-            await signInWithCredential(auth, credential);
-            resolve();
-          } catch (err: any) {
-            reject(err);
-          }
-        },
-      });
+      const timer = window.setTimeout(
+        () => reject(new Error('Google sign-in timed out (no callback fired)')),
+        60_000
+      );
+      const handler = async (response: { credential?: string; error?: string }) => {
+        window.clearTimeout(timer);
+        window.removeEventListener('google-signin-result', handler as any);
+        if (response.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        if (!response.credential) {
+          reject(new Error('No credential received from Google'));
+          return;
+        }
+        try {
+          const credential = GoogleAuthProvider.credential(response.credential);
+          await signInWithCredential(auth, credential);
+          resolve();
+        } catch (err: any) {
+          reject(err);
+        }
+      };
+      window.addEventListener('google-signin-result', handler as any);
       window.google.accounts.id.prompt();
     });
   };
@@ -204,31 +304,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(msg);
     }
 
-    // Idempotent: if already initialized for this clientId, just re-render.
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback: async (response) => {
-        if (response.error) {
-          const msg = response.error || 'unknown_error';
-          console.error('[GoogleLogin] GIS callback error:', msg);
-          onError?.(msg);
-          return;
-        }
-        if (!response.credential) {
-          const msg = 'No credential received from Google';
-          console.error('[GoogleLogin]', msg);
-          onError?.(msg);
-          return;
-        }
-        try {
-          const credential = GoogleAuthProvider.credential(response.credential);
-          await signInWithCredential(auth, credential);
-        } catch (err: any) {
-          console.error('[GoogleLogin] Firebase signInWithCredential error:', err);
-          onError?.(err?.message || 'Firebase sign-in failed');
-        }
-      },
-    });
+    // Hoist GIS initialize to module level so the callback is registered
+    // before React useEffect runs. This is critical for incognito / ITP
+    // fallback: when GIS opens a new tab with #id_token=... and the page
+    // reloads, the callback must already be listening for the fragment.
+    await ensureGISInitialized(clientId, onError);
 
     // Clear any previous render before re-rendering (React strict mode + HMR safe)
     container.innerHTML = '';
