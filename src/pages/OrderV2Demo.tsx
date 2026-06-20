@@ -184,14 +184,13 @@ export default function OrderV2Demo() {
   }, [distanceKm, vehicleType, serviceType, crossBorderCheckpoint]);
 
   const handleSubmit = async () => {
-    // Fix J: use firebase.auth().currentUser as fallback if useAuth() context is stale
-    // (e.g. fresh tab load, ID token just expired, signed-in cookie from a
-    // different Firebase session). Also force ID token refresh before write so
-    // Firestore's isSignedIn() check passes reliably.
-    // Fix J v2: getAuth() from firebase/auth (ESM) gives reliable currentUser
-    // even if useAuth() context is stale (fresh tab load, ID token expired,
-    // sandbox session, etc).
-    const liveUser: any = user || getAuth().currentUser || null;
+    // Fix K4: prefer getAuth().currentUser (real Firebase User with getIdToken)
+    // over the custom User shape from useAuth() context. The context User is a
+    // Firestore-doc-backed object ({ uid, ...userDoc.data() }) which lacks the
+    // getIdToken method needed for Firestore write auth.
+    // Fall back to context user only if Firebase auth says no current user
+    // (e.g., during auth state init).
+    const liveUser: any = getAuth().currentUser || user || null;
     if (!endCoord || !endLabel || !liveUser) {
       console.warn('[handleSubmit] guard failed', {
         hasEndCoord: !!endCoord,
