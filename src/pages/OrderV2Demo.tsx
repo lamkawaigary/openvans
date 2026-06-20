@@ -209,16 +209,22 @@ export default function OrderV2Demo() {
       // Firebase auth endpoint is slow/unreachable. Without the timeout, this
       // promise can resolve-never and the entire handleSubmit hangs silently
       // (no toast, button stuck in submitting state).
-      try {
-        await Promise.race([
-          liveUser.getIdToken(true),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('getIdToken timeout after 5s')), 5000)
-          ),
-        ]);
-        console.log('[handleSubmit] getIdToken OK');
-      } catch (tokenErr: any) {
-        console.warn('[handleSubmit] getIdToken failed (will still attempt write):', tokenErr?.message);
+      // Fix K1: only call getIdToken if it's actually a function on the user
+      // object (defensive against context-stale / non-User objects).
+      if (typeof liveUser?.getIdToken === 'function') {
+        try {
+          await Promise.race([
+            liveUser.getIdToken(true),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('getIdToken timeout after 5s')), 5000)
+            ),
+          ]);
+          console.log('[handleSubmit] getIdToken OK');
+        } catch (tokenErr: any) {
+          console.warn('[handleSubmit] getIdToken failed (will still attempt write):', tokenErr?.message);
+        }
+      } else {
+        console.warn('[handleSubmit] liveUser.getIdToken is not a function — skipping refresh');
       }
       // Build pickup time: now + 1h for 即時 mode, or user-picked for 預約
       const finalPickupTime = pickupMode === 'now'
@@ -233,12 +239,13 @@ export default function OrderV2Demo() {
         dropoffAddress: endLabel,
         dropoffLat: endCoord.lat,
         dropoffLng: endCoord.lng,
-        waypoints: waypoints.length > 0 ? waypoints.map(w => ({
+        // Fix K2: only include waypoints when non-empty (Firestore rejects undefined)
+        ...(waypoints.length > 0 && { waypoints: waypoints.map(w => ({
           name: w.customName || w.label, // Phase 7.3: prefer customName
           address: w.label,
           lat: w.coord.lat,
           lng: w.coord.lng,
-        })) : undefined,
+        })) }),
         // Phase 7.4: include surcharge breakdown if cross-border
         ...(serviceType === 'cross_border' && {
           crossBorder: {
@@ -247,8 +254,9 @@ export default function OrderV2Demo() {
             surcharge: CROSS_BORDER_CHECKPOINTS.find(cp => cp.value === crossBorderCheckpoint)?.fee || 0,
           },
         }),
-        // Phase 7.5: file attachments (stub)
-        attachments: attachments.length > 0 ? attachments : undefined,
+        // Phase 7.5: file attachments (stub) — Fix K2: only include when non-empty
+        // (Firestore rejects undefined field values with invalid-argument error)
+        ...(attachments.length > 0 && { attachments }),
         serviceType,
         ...(serviceType === 'cross_border' && {
           crossBorderCheckpoint,
@@ -506,18 +514,10 @@ export default function OrderV2Demo() {
         }}
       >☰</button>
 
-      <div style={{
-        position: 'absolute', top: 16, right: 16, zIndex: 50,
-        padding: '8px 14px', background: 'rgba(0,0,0,0.8)', color: '#fff',
-        borderRadius: 8, fontSize: 12, fontWeight: 600, textAlign: 'center',
-        backdropFilter: 'blur(8px)',
-        maxWidth: 'calc(100vw - 80px)',
-      }}>
-        🧪 Phase 7 · Sheet: <strong style={{ color: '#FFD700' }}>{sheetMode}</strong>
-        <div style={{ fontSize: 11, opacity: 0.8, marginTop: 2, fontWeight: 400 }}>
-          揀車 + 確認 → Firestore createBooking
-        </div>
-      </div>
+      {/* Phase 7 debug banner removed in Fix K3 — was dev-only debug overlay
+          ("🧪 Phase 7 · Sheet: idle" + Firestore flow notes). Should not
+          appear in production. Sheet mode still observable via console +
+          future internal admin tools if needed. */}
 
       <BottomSheet initialState="half" externalState={sheetState} onStateChange={s => {
         if (s === 'half' && isFullSheet) cancelSearch();
