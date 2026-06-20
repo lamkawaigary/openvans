@@ -233,6 +233,7 @@ export default function OrderV2Demo() {
         ? new Date(Date.now() + 60 * 60 * 1000).toISOString()
         : new Date(pickupTime).toISOString();
 
+      console.log('[handleSubmit] About to call createBooking with renterId=', liveUser.uid);
       const id = await createBooking({
         renterId: liveUser.uid,
         pickupAddress: startLabel,
