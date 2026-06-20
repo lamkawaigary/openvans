@@ -527,6 +527,7 @@ export default function OrderV2Demo() {
       }}>
         {isHalf && (
           <div style={{ padding: '12px 20px 28px' }}>
+              {/* Sheet content padded 20px from screen edges — see Gary UX feedback (6/20 21:48) */}
             <div style={{ fontSize: 17, fontWeight: 700, color: colors.textPrimary, marginBottom: 12 }}>📦 落單</div>
 
             {/* Phase 6a-1: Service type tabs */}
@@ -542,7 +543,7 @@ export default function OrderV2Demo() {
               })}
             </div>
             <div style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 12, marginTop: -8 }}>{SERVICE_LABELS[serviceType].desc}</div>
-            <div style={{ background: colors.background, borderRadius: 16, padding: 6, marginBottom: 12, border: `1.5px solid ${colors.border}`, position: 'relative' }}>
+            <div style={{ background: colors.background, borderRadius: 16, padding: 10, marginBottom: 12, border: `1.5px solid ${colors.border}`, position: 'relative' }}>
               <div onClick={() => enterSearch('start')} style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 12, minHeight: 48, cursor: 'pointer', borderRadius: 10 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.brand, flexShrink: 0 }} />
                 <div style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{startLabel}</div>
