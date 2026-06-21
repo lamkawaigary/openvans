@@ -44,6 +44,9 @@ export default function DriverJobsPage() {
   const [driverState, setDriverState] = useState<DriverState | null>(null);
   const [isOnline, setIsOnline] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  // Double-confirm modal: when a driver taps 接單, show booking details and ask
+  // them to confirm before actually accepting. Prevents accidental accepts.
+  const [confirmingBooking, setConfirmingBooking] = useState<Booking | null>(null);
 
   // Redirect non-drivers
   useEffect(() => {
@@ -78,12 +81,23 @@ export default function DriverJobsPage() {
     ? allPending.filter(b => b.vehicleTypeRequired === driverState.vehicleType)
     : [];
 
-  const handleAccept = async (booking: Booking) => {
+  const handleAccept = (booking: Booking) => {
+    // Step 1: validate state and show double-confirm modal.
+    // The actual acceptBooking() call is in confirmAccept() below, which only
+    // runs when the driver explicitly taps "確認接單" in the modal.
     if (!user || !driverState?.currentVanId) return;
     if (!isOnline) {
       showError('請先上線再接單');
       return;
     }
+    setConfirmingBooking(booking);
+  };
+
+  const confirmAccept = async () => {
+    // Step 2: actually accept the booking (after the driver confirms in the modal).
+    if (!confirmingBooking || !user || !driverState?.currentVanId) return;
+    const booking = confirmingBooking;
+    setConfirmingBooking(null); // close modal immediately
     setAcceptingId(booking.id);
     try {
       await acceptBooking(booking.id, user.uid, driverState.currentVanId);
@@ -180,6 +194,112 @@ export default function DriverJobsPage() {
           ))
         )}
       </div>
+
+      {/* ── Double-confirm accept modal ── */}
+      {confirmingBooking && (
+        <div
+          data-testid="accept-confirm-modal"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.55)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: sp.md,
+          }}
+          onClick={() => setConfirmingBooking(null)}
+        >
+          <div
+            style={{
+              ...styles.cardElevated,
+              maxWidth: 420,
+              width: '100%',
+              background: colors.surface,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: 0, marginBottom: 4, fontSize: 18, fontWeight: 700, color: colors.textPrimary }}>
+              確認接單？
+            </h3>
+            <p style={{ margin: 0, marginBottom: sp.md, color: colors.textSecondary, fontSize: 13 }}>
+              請核實訂單資料，確認後即無法取消。
+            </p>
+
+            <div style={{ ...styles.card, background: colors.background, marginBottom: sp.md, padding: sp.md }}>
+              <div style={{ marginBottom: sp.sm }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, marginBottom: 2 }}>起點</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: colors.textPrimary }}>
+                  {confirmingBooking.pickupAddress}
+                </div>
+              </div>
+              <div style={{ marginBottom: sp.sm }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: colors.textMuted, marginBottom: 2 }}>終點</div>
+                <div style={{ fontSize: 14, fontWeight: 500, color: colors.textPrimary }}>
+                  {confirmingBooking.dropoffAddress}
+                </div>
+              </div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: sp.sm,
+                paddingTop: sp.sm,
+                borderTop: `1px solid ${colors.border}`,
+              }}>
+                <div>
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>車型</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.textPrimary, marginTop: 2 }}>
+                    <VehicleTypeIcon type={confirmingBooking.vehicleTypeRequired} size={14} /> {VAN_TYPE_LABELS[confirmingBooking.vehicleTypeRequired]}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>件數</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: colors.textPrimary, marginTop: 2 }}>
+                    {confirmingBooking.totalLoadCount} 件
+                  </div>
+                </div>
+                <div style={{ gridColumn: '1 / span 2' }}>
+                  <div style={{ fontSize: 11, color: colors.textMuted }}>預計費用</div>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: colors.brand, marginTop: 2 }}>
+                    HK${confirmingBooking.estimatedPrice ?? 0}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: sp.sm }}>
+              <button
+                data-testid="accept-cancel-btn"
+                style={{
+                  ...styles.secondaryBtn,
+                  flex: 1,
+                  padding: '12px 0',
+                  fontSize: 15,
+                  fontWeight: 700,
+                }}
+                onClick={() => setConfirmingBooking(null)}
+              >
+                取消
+              </button>
+              <button
+                data-testid="accept-confirm-btn"
+                style={{
+                  ...styles.primaryBtn,
+                  flex: 1,
+                  padding: '12px 0',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  background: colors.brand,
+                }}
+                onClick={confirmAccept}
+              >
+                <IconCheck size={16} color={colors.white} /> 確認接單
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
