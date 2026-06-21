@@ -28,8 +28,16 @@ const CROSS_BORDER_CHECKPOINTS = [
   { value: 'futian', label: '福田', fee: 0 },
 ];
 
-const DEFAULT_CENTER = { lat: 22.2819, lng: 114.1582 };
+// Hong Kong overview center (between Kowloon and Tsuen Wan) — shows the
+// entire HK territory on first load instead of zooming into Central.
+const DEFAULT_CENTER = { lat: 22.32, lng: 114.17 };
 const DEFAULT_START = { lat: 22.2855, lng: 114.1574 };
+// Pearl River Delta center for cross-border trips — covers HK + Shenzhen +
+// Macau + Zhuhai. Used when the renter picks 跨境車.
+const CROSS_BORDER_CENTER = { lat: 22.5, lng: 113.8 };
+// Zoom levels: 10 for HK overview, 8 for PRD overview.
+const HK_ZOOM = 10;
+const PRD_ZOOM = 8;
 
 const containerStyle: React.CSSProperties = { width: '100%', height: '100%' };
 const mapOptions: google.maps.MapOptions = {
@@ -306,7 +314,7 @@ export default function OrderV2Demo() {
     setSearching(true);
     searchTimer.current = window.setTimeout(async () => {
       try {
-        const r = await getPlaceSuggestions(query.trim());
+        const r = await getPlaceSuggestions(query.trim(), serviceType);
         setResults(r);
       } catch {
         setResults([]);
@@ -459,8 +467,8 @@ export default function OrderV2Demo() {
       <div style={{ position: 'absolute', inset: 0 }}>
         <GoogleMap
           mapContainerStyle={containerStyle}
-          center={DEFAULT_CENTER}
-          zoom={14}
+          center={serviceType === 'cross_border' ? CROSS_BORDER_CENTER : DEFAULT_CENTER}
+          zoom={serviceType === 'cross_border' ? PRD_ZOOM : HK_ZOOM}
           onLoad={handleMapLoad}
           onClick={handleMapClick}
           options={mapOptions}

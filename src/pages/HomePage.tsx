@@ -26,12 +26,29 @@ const MAP_STYLE: google.maps.MapTypeStyle[] = [
 ];
 
 // ─── Places API (Nominatim) ───────────────────────────────────────────────
-export async function getPlaceSuggestions(query: string) {
+// Hong Kong approximate bounding box (west, north, east, south) for Nominatim.
+// Roughly covers the entire HK territory + immediate surrounding waters.
+const HK_BOUNDS = { west: 113.83, north: 22.55, east: 114.43, south: 22.13 };
+// Pearl River Delta viewbox — used only for cross-border trips so that
+// results are restricted to PRD cities (Shenzhen, Dongguan, Zhuhai, Macau,
+// Zhongshan, Guangzhou) when serviceType === 'cross_border'.
+const PRD_BOUNDS = { west: 112.5, north: 23.5, east: 114.5, south: 21.8 };
+
+export async function getPlaceSuggestions(
+  query: string,
+  serviceType: 'delivery' | 'truck' | 'cross_border' = 'truck'
+) {
   if (!query.trim()) return [];
   try {
-    // Search Hong Kong + Guangdong region, no suffix to avoid limiting results
+    // Restrict search to HK unless the renter explicitly chose cross-border.
+    // This prevents accidental searches for Mainland addresses in standard
+    // trips (which would be flagged at booking time).
+    const isCrossBorder = serviceType === 'cross_border';
+    const bounds = isCrossBorder ? PRD_BOUNDS : HK_BOUNDS;
+    const countrycodes = isCrossBorder ? 'cn,hk' : 'hk';
+
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&viewbox=113.0,21.8,114.6,23.5&bounded=1&q=${encodeURIComponent(query)}&limit=8&addressdetails=1&countrycodes=cn,hk`
+      `https://nominatim.openstreetmap.org/search?format=json&viewbox=${bounds.west},${bounds.north},${bounds.east},${bounds.south}&bounded=1&q=${encodeURIComponent(query)}&limit=8&addressdetails=1&countrycodes=${countrycodes}`
     );
     const data = await res.json();
     return data.map((item: Record<string, unknown>) => ({
