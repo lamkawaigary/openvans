@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { GoogleMap, Marker, Polyline } from '@react-google-maps/api';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { getBooking, cancelBooking, startBooking, completeBooking } from '../services/bookings';
@@ -40,6 +41,25 @@ export default function TripDetailPage() {
 
   // Driver-side lifecycle actions: confirmed → in_progress → completed.
   const isDriverViewer = user && booking ? user.uid === booking.driverId : false;
+
+  // Map state
+  const mapRef = useRef<google.maps.Map | null>(null);
+  const hasCoords = !!(booking?.pickupLat && booking?.pickupLng && booking?.dropoffLat && booking?.dropoffLng);
+  const pickupCoord = hasCoords && booking ? { lat: booking.pickupLat!, lng: booking.pickupLng! } : null;
+  const dropoffCoord = hasCoords && booking ? { lat: booking.dropoffLat!, lng: booking.dropoffLng! } : null;
+  const mapCenter = pickupCoord && dropoffCoord
+    ? { lat: (pickupCoord.lat + dropoffCoord.lat) / 2, lng: (pickupCoord.lng + dropoffCoord.lng) / 2 }
+    : pickupCoord || dropoffCoord || { lat: 22.3193, lng: 114.1694 };
+
+  // Auto-fit bounds when map loads or coords change
+  useEffect(() => {
+    if (mapRef.current && pickupCoord && dropoffCoord) {
+      const bounds = new google.maps.LatLngBounds();
+      bounds.extend(pickupCoord);
+      bounds.extend(dropoffCoord);
+      mapRef.current.fitBounds(bounds, 80);
+    }
+  }, [booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
     if (!booking || !user) return;
@@ -113,6 +133,69 @@ export default function TripDetailPage() {
                   HK${booking.estimatedPrice}
                 </span>
               )}
+            </div>
+          )}
+
+          {/* Map view */}
+          {hasCoords && (
+            <div style={s.mapCard} data-testid="trip-map">
+              <GoogleMap
+                mapContainerStyle={s.mapContainer}
+                center={mapCenter}
+                zoom={12}
+                onLoad={(map) => { mapRef.current = map; }}
+                onUnmount={() => { mapRef.current = null; }}
+                options={{
+                  disableDefaultUI: true,
+                  zoomControl: true,
+                  mapTypeControl: false,
+                  fullscreenControl: false,
+                  streetViewControl: false,
+                  gestureHandling: 'cooperative',
+                  styles: [
+                    { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+                    { featureType: 'transit', stylers: [{ visibility: 'simplified' }] },
+                  ],
+                }}
+              >
+                {pickupCoord && (
+                  <Marker
+                    position={pickupCoord}
+                    icon={{
+                      path: google.maps.SymbolPath.CIRCLE,
+                      scale: 10,
+                      fillColor: colors.primaryBlue,
+                      fillOpacity: 1,
+                      strokeColor: '#fff',
+                      strokeWeight: 3,
+                    }}
+                  />
+                )}
+                {dropoffCoord && (
+                  <Marker
+                    position={dropoffCoord}
+                    icon={{
+                      path: google.maps.SymbolPath.CIRCLE,
+                      scale: 10,
+                      fillColor: colors.orange,
+                      fillOpacity: 1,
+                      strokeColor: '#fff',
+                      strokeWeight: 3,
+                    }}
+                  />
+                )}
+                {pickupCoord && dropoffCoord && (
+                  <Polyline
+                    path={[pickupCoord, dropoffCoord]}
+                    options={{
+                      strokeColor: colors.brand,
+                      strokeOpacity: 0.8,
+                      strokeWeight: 4,
+                      geodesic: true,
+                    }}
+                  />
+                )}
+              </GoogleMap>
             </div>
           )}
 
@@ -288,4 +371,6 @@ const s: Record<string, React.CSSProperties> = {
   completeBtn: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.success, color: colors.white, fontSize: 16, fontWeight: 800, cursor: 'pointer', marginTop: sp.sm, boxShadow: colors.shadowSm },
   completeBtnDisabled: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.lightGrey, color: colors.textMuted, fontSize: 16, fontWeight: 800, cursor: 'not-allowed', marginTop: sp.sm },
   manageHint: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, padding: '8px 0', fontStyle: 'italic', marginTop: sp.xs },
+  mapCard: { background: colors.surface, borderRadius: rd.lg, overflow: 'hidden', height: 220, border: `1px solid ${colors.border}`, position: 'relative' as const },
+  mapContainer: { width: '100%', height: '100%' },
 };
