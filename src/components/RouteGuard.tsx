@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 interface RouteGuardProps {
   children: React.ReactNode;
   /** Roles allowed to access this route. Undefined = any role including guest */
-  allowedRoles?: ('owner' | 'renter' | 'admin')[];
+  allowedRoles?: ('driver' | 'renter' | 'admin')[];
   /** Routes to redirect to when access is denied */
   fallback?: string;
 }

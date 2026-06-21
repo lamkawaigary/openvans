@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { subscribeToOwnerVans, addVan, updateVan, deleteVan } from '../services/vans';
+import { subscribeToDriverVans, addVan, updateVan, deleteVan } from '../services/vans';
 import { IconLargeTruck, IconCheck, IconArrowRight, IconLock, IconTrash, IconX } from '../components/Icon';
 import { goOffline, subscribeToDriver } from '../services/drivers';
 import type { Van, VehicleType } from '../types';
@@ -30,11 +30,11 @@ export default function MyVansPage() {
   }, [user]);
 
   useEffect(() => {
-    if (!user || user.role !== 'owner') {
+    if (!user || user.role !== 'driver') {
       navigate('/');
       return;
     }
-    const unsub = subscribeToOwnerVans(user.uid, (data) => {
+    const unsub = subscribeToDriverVans(user.uid, (data) => {
       setVans(data);
       setLoading(false);
     });
@@ -103,7 +103,7 @@ export default function MyVansPage() {
           onClose={() => setShowAdd(false)}
           onAdd={async (data) => {
             if (!user) return;
-            await addVan({ ...data, ownerId: user.uid, isAvailable: true, isVerified: false });
+            await addVan({ ...data, driverId: user.uid, isAvailable: true, isVerified: false });
             showNotification({ title: '貨車已新增', body: '', type: 'success' });
             setShowAdd(false);
           }}
@@ -157,7 +157,7 @@ function VanCard({ van, isDriverOnline, onToggleAvailable, onDelete }: {
   );
 }
 
-function AddVanModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: Omit<Van, 'id' | 'ownerId' | 'createdAt' | 'isAvailable' | 'isVerified'>) => void }) {
+function AddVanModal({ onClose, onAdd }: { onClose: () => void; onAdd: (data: Omit<Van, 'id' | 'driverId' | 'createdAt' | 'isAvailable' | 'isVerified'>) => void }) {
   const [plateNumber, setPlateNumber] = useState('');
   const [make, setMake] = useState('');
   const [model, setModel] = useState('');

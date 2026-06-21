@@ -26,25 +26,31 @@ service cloud.firestore {
     match /vans/{vanId} {
       // Only owner or admin can read a specific van's details (no public listing)
       allow read: if isSignedIn()
-                  && (resource.data.ownerId == request.auth.uid || isAdmin());
+                  && (resource.data.driverId == request.auth.uid || isAdmin());
       // Anyone signed in can list vans (for matching) — enforced in app logic
       allow list: if isSignedIn();
       allow create: if isSignedIn()
-                    && request.resource.data.ownerId == request.auth.uid;
+                    && request.resource.data.driverId == request.auth.uid;
       allow update: if isSignedIn()
-                    && (resource.data.ownerId == request.auth.uid || isAdmin())
-                    && request.resource.data.ownerId == resource.data.ownerId;
+                    && (resource.data.driverId == request.auth.uid || isAdmin())
+                    && request.resource.data.driverId == resource.data.driverId;
       allow delete: if isSignedIn()
-                    && resource.data.ownerId == request.auth.uid;
+                    && resource.data.driverId == request.auth.uid;
     }
 
     // ─── Bookings ──────────────────────────────────────────────────────────
     match /bookings/{bookingId} {
-      // Read: renter (own bookings), owner (own bookings), or admin (all)
-      allow read: if isSignedIn()
-                  && (resource.data.renterId == request.auth.uid
-                      || resource.data.ownerId == request.auth.uid
-                      || isAdmin());
+      // Read: renter (own bookings), driver (own accepted bookings),
+      //       any PENDING booking (the public pool for drivers to browse),
+      //       or admin.
+      // This fixes the silent fail where drivers couldn't see the public pool:
+      // pending bookings have no driverId yet (set only when a driver accepts).
+      allow read: if isSignedIn() && (
+                      resource.data.renterId == request.auth.uid
+                      || resource.data.driverId == request.auth.uid
+                      || resource.data.status == 'pending'
+                      || isAdmin()
+                  );
 
       // Create: any signed-in user can create a booking as renter
       allow create: if isSignedIn()
@@ -60,15 +66,19 @@ service cloud.firestore {
                     && request.resource.data.status == 'cancelled'
                     && resource.data.status in ['pending', 'confirmed'];
 
-      // Owner: can accept pending bookings assigned to them
+      // Driver accepting a pending booking: driverId is currently absent
+      // (pending bookings have no driver assigned yet), the update sets
+      // driverId to the accepting driver's uid and status → 'confirmed'.
+      // Using 'in' check since 'driverId' is absent, not null.
       allow update: if isSignedIn()
-                    && resource.data.ownerId == request.auth.uid
+                    && resource.data.status == 'pending'
+                    && !('driverId' in resource.data)
                     && request.resource.data.status == 'confirmed'
-                    && resource.data.status == 'pending';
+                    && request.resource.data.driverId == request.auth.uid;
 
-      // Owner: can advance confirmed → in_progress → completed
+      // Driver progressing their accepted booking: confirmed → in_progress → completed
       allow update: if isSignedIn()
-                    && resource.data.ownerId == request.auth.uid
+                    && resource.data.driverId == request.auth.uid
                     && request.resource.data.status in ['in_progress', 'completed']
                     && resource.data.status in ['confirmed', 'in_progress'];
     }
@@ -80,17 +90,41 @@ service cloud.firestore {
     }
 
     // ─── Notifications ─────────────────────────────────────────────────────
+    // Notifications are system-triggered: e.g. when a driver accepts a
+    // booking, the driver's session calls notifyBookingAccepted(renterId, ...)
+    // which creates a notification FOR the renter. The acting user's uid is
+    // the sender (driver), not the recipient (renter), so the create rule
+    // can't require request.auth.uid == resource.data.userId.
+    // For v1 we allow any signed-in user to create a notification for any
+    // userId. In production this should move to a Cloud Function trigger
+    // for stronger guarantees.
     match /notifications/{notifId} {
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId is string;
       allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
     }
 
     // ─── Drivers (online/offline state + location tracking) ──────────────────
-    match /drivers/{ownerId} {
-      allow read: if isSignedIn() && (request.auth.uid == ownerId || isAdmin());
-      allow write: if isSignedIn() && request.auth.uid == ownerId;
-      allow delete: if isSignedIn() && request.auth.uid == ownerId;
+    match /drivers/{driverId} {
+      allow read: if isSignedIn() && (request.auth.uid == driverId || isAdmin());
+      // Tighten create to a known shape — protects against a compromised
+      // client writing arbitrary fields to drivers/{theirUid}.
+      allow create: if isSignedIn()
+                    && request.auth.uid == driverId
+                    && request.resource.data.driverId == request.auth.uid
+                    && request.resource.data.keys().hasAll([
+                      'driverId', 'isOnline', 'currentVanId',
+                      'vehicleType', 'updatedAt'
+                    ]);
+      // Updates may only modify documented driver-state fields.
+      allow update: if isSignedIn()
+                    && request.auth.uid == driverId
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                        .hasOnly([
+                          'isOnline', 'currentVanId', 'vehicleType',
+                          'currentLat', 'currentLng', 'updatedAt'
+                        ]);
+      allow delete: if isSignedIn() && request.auth.uid == driverId;
     }
   }
 }

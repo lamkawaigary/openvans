@@ -292,10 +292,10 @@ export default function AdminDashboard() {
                     <div style={listItemRight}>
                       <span style={{
                         ...badge,
-                        color: u.role === 'owner' ? '#065f46' : '#1d4ed8',
-                        background: u.role === 'owner' ? '#d1fae5' : '#dbeafe',
+                        color: u.role === 'driver' ? '#065f46' : '#1d4ed8',
+                        background: u.role === 'driver' ? '#d1fae5' : '#dbeafe',
                       }}>
-                        {u.role === 'owner' ? <><IconTruck size={12} /> 司機</> : u.role === 'admin' ? '管理員' : <><IconUser size={12} /> 乘客</>}
+                        {u.role === 'driver' ? <><IconTruck size={12} /> 司機</> : u.role === 'admin' ? '管理員' : <><IconUser size={12} /> 乘客</>}
                       </span>
                       <span style={{
                         ...badge,

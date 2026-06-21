@@ -16,25 +16,37 @@ import type { Van } from '../types';
 // Subscribe to all vans (for renters to browse)
 export function subscribeToVans(callback: (vans: Van[]) => void) {
   const q = query(collection(db, 'vans'), where('isAvailable', '==', true));
-  return onSnapshot(q, snap => {
-    const vans = snap.docs.map(d => {
-      const data = d.data();
-      return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
-    });
-    callback(vans);
-  });
+  return onSnapshot(q,
+    snap => {
+      const vans = snap.docs.map(d => {
+        const data = d.data();
+        return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
+      });
+      callback(vans);
+    },
+    err => {
+      console.error('[Firestore] subscribeToVans error:', err);
+      callback([]);
+    }
+  );
 }
 
 // Subscribe to owner's own vans
-export function subscribeToOwnerVans(ownerId: string, callback: (vans: Van[]) => void) {
-  const q = query(collection(db, 'vans'), where('ownerId', '==', ownerId));
-  return onSnapshot(q, snap => {
-    const vans = snap.docs.map(d => {
-      const data = d.data();
-      return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
-    });
-    callback(vans);
-  });
+export function subscribeToDriverVans(driverId: string, callback: (vans: Van[]) => void) {
+  const q = query(collection(db, 'vans'), where('driverId', '==', driverId));
+  return onSnapshot(q,
+    snap => {
+      const vans = snap.docs.map(d => {
+        const data = d.data();
+        return { id: d.id, ...data, vehicleType: data.vehicleType ?? null } as Van;
+      });
+      callback(vans);
+    },
+    err => {
+      console.error('[Firestore] subscribeToDriverVans error:', err);
+      callback([]);
+    }
+  );
 }
 
 // Add a new van

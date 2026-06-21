@@ -12,7 +12,7 @@ export default function LoginPage() {
   const googleButtonRef = useRef<HTMLDivElement>(null);
 
   // Already logged in → route based on stored role.
-  // Existing users with role=owner → /driver-jobs; renter/admin → / (叫車畫面).
+  // Existing users with role=driver → /driver-jobs; renter/admin → / (叫車畫面).
   // New Google sign-in (no user doc) → /onboarding to pick role.
   useEffect(() => {
     if (!user) return;
@@ -22,7 +22,7 @@ export default function LoginPage() {
       (Date.now() - new Date(user.createdAt).getTime()) < 60_000;
     if (isNewUser) {
       navigate('/onboarding');
-    } else if (user.role === 'owner') {
+    } else if (user.role === 'driver') {
       navigate('/driver-jobs');
     } else {
       navigate('/');
@@ -36,7 +36,7 @@ export default function LoginPage() {
 
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [role, setRole] = useState<'owner' | 'renter'>('renter');
+  const [role, setRole] = useState<'driver' | 'renter'>('renter');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -113,7 +113,7 @@ export default function LoginPage() {
           <div style={s.roleGrid}>
             {([
               { key: 'renter' as const, text: '租用者' },
-              { key: 'owner' as const, text: '車主' },
+              { key: 'driver' as const, text: '司機' },
             ]).map(r => (
               <div
                 key={r.key}

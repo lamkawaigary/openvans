@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../context/AuthContext';
 import { goOnline, goOffline, subscribeToDriver, repairOrphanVan, DriverError } from '../services/drivers';
-import { subscribeToOwnerVans } from '../services/vans';
+import { subscribeToDriverVans } from '../services/vans';
 import type { Van, VehicleType } from '../types';
 
 // ─── Shared constants ─────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ export default function OnlineToggle({ onOnlineStateChange }: OnlineToggleProps)
   useEffect(() => {
     if (!user) return;
     setLoadingVans(true);
-    const unsub = subscribeToOwnerVans(user.uid, (data) => {
+    const unsub = subscribeToDriverVans(user.uid, (data) => {
       // Only show available vans (not currently in use by another online session)
       setVans(data.filter((v) => v.isAvailable || v.id === currentVanId));
       setLoadingVans(false);

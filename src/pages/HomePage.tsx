@@ -8,12 +8,12 @@ import BookingFlow from '../components/BookingFlow';
 import type { Booking } from '../types';
 import { colors, sp } from '../styles';
 
-// Redirect owner drivers to the driver jobs page
-function useOwnerRedirect() {
+// Redirect driver users to the driver jobs page
+function useDriverRedirect() {
   const { user } = useAuth();
   const navigate = useNavigate();
   useEffect(() => {
-    if (user && user.role === 'owner') {
+    if (user && user.role === 'driver') {
       navigate('/driver-jobs', { replace: true });
     }
   }, [user]);
@@ -83,7 +83,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string> 
 
 // ─── Main HomePage ─────────────────────────────────────────────────────────
 export default function HomePage() {
-  useOwnerRedirect(); // redirect owner drivers to driver-jobs immediately
+  useDriverRedirect(); // redirect drivers to driver-jobs immediately
   const navigate = useNavigate();
   const { user } = useAuth();
   const { openMenu } = useSideMenu();

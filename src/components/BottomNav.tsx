@@ -7,11 +7,11 @@ export default function BottomNav() {
   const location = useLocation();
   const { user } = useAuth();
 
-  const isOwner = user?.role === 'owner';
+  const isDriver = user?.role === 'driver';
 
-  // Owner: 搶單, 行程, 我的Van, 我的
+  // Driver: 搶單, 行程, 我的Van, 我的
   // Renter: 首頁, 貨運, 搵車, 我的
-  const ownerItems = [
+  const driverItems = [
     { path: '/driver-jobs', icon: '📋', label: '搶單' },
     { path: '/trips', icon: '📋', label: '行程' },
     { path: '/my-vans', icon: '🚚', label: '我的Van' },
@@ -25,7 +25,7 @@ export default function BottomNav() {
     { path: '/profile', icon: '👤', label: '我的' },
   ];
 
-  const items = isOwner ? ownerItems : renterItems;
+  const items = isDriver ? driverItems : renterItems;
 
   return (
     <div style={styles.nav}>

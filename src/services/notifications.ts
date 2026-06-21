@@ -54,10 +54,16 @@ export function subscribeToNotifications(
     orderBy('createdAt', 'desc'),
     limit(50)
   );
-  return onSnapshot(q, (snap) => {
-    const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
-    callback(notifs);
-  });
+  return onSnapshot(q,
+    (snap) => {
+      const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() } as AppNotification));
+      callback(notifs);
+    },
+    (err) => {
+      console.error('[Firestore] subscribeToNotifications error:', err);
+      callback([]);
+    }
+  );
 }
 
 // ─── Mark as read ─────────────────────────────────────────────────────────────

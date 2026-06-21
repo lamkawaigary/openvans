@@ -3,7 +3,10 @@
 // ============================================
 
 // User roles
-export type UserRole = 'owner' | 'renter' | 'admin';
+// 'driver' = 司機 / 車主 (provides vans + accepts bookings)
+// 'renter' = 乘客 / 客戶 (books vans)
+// 'admin'  = 管理員
+export type UserRole = 'driver' | 'renter' | 'admin';
 
 // ─── Vehicle types (Hong Kong freight standard) ────────────────────────────────
 // 香港貨運標準車型
@@ -41,7 +44,7 @@ export interface User {
   name: string;
   phone: string;
   email?: string;
-  role: UserRole;           // 'owner' | 'renter'
+  role: UserRole;           // 'driver' | 'renter' | 'admin'
   avatarUrl?: string;
   createdAt: string;
   isActive: boolean;
@@ -49,7 +52,9 @@ export interface User {
 
 export interface Van {
   id: string;
-  ownerId: string;           // uid of van owner
+  // driverId = the driver's uid who owns this van (kept as 'driverId' for backward
+  // compat with Firestore schema; semantically this is the driver's uid).
+  driverId: string;
   plateNumber: string;       // e.g. "TV 1234"
   vehicleType: VehicleType;  // 'motorcycle' | 'light' | 'truck_5_5t'
   make: string;              // e.g. "Toyota"
@@ -72,9 +77,12 @@ export interface BookingLoad {
 
 export interface Booking {
   id: string;
-  renterId: string;          // uid of person who booked
-  vanId?: string;           // Assigned van (set when confirmed)
-  ownerId?: string;         // Van owner (set when confirmed)
+  renterId: string;          // uid of person who booked (乘客)
+  vanId?: string;            // Assigned van (set when confirmed)
+  // driverId = assigned driver's uid (set when driver accepts). Field name kept
+  // as 'driverId' for backward compat with Firestore schema. Semantically this
+  // is the driver's uid (same person as role 'driver').
+  driverId?: string;
 
   // Pickup & drop-off
   pickupAddress: string;

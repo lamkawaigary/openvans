@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { subscribeToRenterBookings, subscribeToOwnerBookings } from '../services/bookings';
+import { subscribeToRenterBookings, subscribeToDriverBookings } from '../services/bookings';
 import type { Booking } from '../types';
 import { IconLargeTruck, IconPackage } from '../components/Icon';
 import { colors, sp, rd } from '../styles';
@@ -20,8 +20,8 @@ export default function TripsPage() {
   useEffect(() => {
     if (!user) { navigate('/login'); return; }
     let unsub: () => void;
-    if (user.role === 'owner') {
-      unsub = subscribeToOwnerBookings(user.uid, data => { setBookings(data); setLoading(false); });
+    if (user.role === 'driver') {
+      unsub = subscribeToDriverBookings(user.uid, data => { setBookings(data); setLoading(false); });
     } else {
       unsub = subscribeToRenterBookings(user.uid, data => { setBookings(data); setLoading(false); });
     }
@@ -87,21 +87,21 @@ export default function TripsPage() {
           <div style={styles.loading}>載入中…</div>
         ) : filtered.length === 0 ? (
           <div style={styles.empty}>
-            <div style={styles.emptyIcon}>{user?.role === 'owner' ? <IconLargeTruck size={48} color={colors.textMuted} /> : <IconPackage size={48} color={colors.textMuted} />}</div>
+            <div style={styles.emptyIcon}>{user?.role === 'driver' ? <IconLargeTruck size={48} color={colors.textMuted} /> : <IconPackage size={48} color={colors.textMuted} />}</div>
             <div style={{ fontSize: 17, fontWeight: 700, marginBottom: 6 }}>
-              {user?.role === 'owner'
+              {user?.role === 'driver'
                 ? '暫時沒有車單'
                 : '暫時沒有柯打'}
             </div>
             <div style={{ fontSize: 14, color: colors.textSecondary, marginBottom: sp.lg }}>
-              {user?.role === 'owner' ? '等待客戶下單' : '發布需求，搵司機接單！'}
+              {user?.role === 'driver' ? '等待客戶下單' : '發布需求，搵司機接單！'}
             </div>
             {user?.role === 'renter' && (
               <button style={styles.publishBtn} onClick={() => navigate('/publish')}>
                 發布需求
               </button>
             )}
-            {user?.role === 'owner' && (
+            {user?.role === 'driver' && (
               <button style={styles.publishBtn} onClick={() => navigate('/dashboard')}>
                 查看 Dashboard →
               </button>

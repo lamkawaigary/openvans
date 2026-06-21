@@ -26,7 +26,7 @@ export default function TripDetailPage() {
     if (!booking || !user || !confirm('確定取消此訂單？')) return;
     setCancelling(true);
     try {
-      const actorRole: 'renter' | 'owner' = user.uid === booking.renterId ? 'renter' : 'owner';
+      const actorRole: 'renter' | 'driver' = user.uid === booking.renterId ? 'renter' : 'driver';
       await cancelBooking(booking.id, user.uid, actorRole);
       showNotification({ title: '已取消', body: '訂單已取消', type: 'info' });
       navigate('/trips');

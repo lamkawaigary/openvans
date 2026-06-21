@@ -16,7 +16,7 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
-  const [role, setRole] = useState<'owner' | 'renter' | 'admin'>(user?.role || 'renter');
+  const [role, setRole] = useState<'driver' | 'renter' | 'admin'>(user?.role || 'renter');
 
   const handleComplete = async () => {
     if (!name.trim() || !phone.trim()) {
@@ -27,8 +27,8 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
     try {
       await updateUserProfile({ name: name.trim(), phone: phone.trim(), role });
       showNotification({ title: '資料已完善！', body: '歡迎加入 OpenVan', type: 'success' });
-      // Owner (driver) goes to driver jobs page; renter goes to home
-      navigate(role === 'owner' ? '/driver-jobs' : '/');
+      // Driver goes to driver jobs page; renter goes to home
+      navigate(role === 'driver' ? '/driver-jobs' : '/');
     } catch (err: any) {
       showNotification({ title: '儲存失敗', body: err.message, type: 'error' });
     } finally {
@@ -66,7 +66,7 @@ export default function OnboardingPage({ isFirstTime = true }: OnboardingProps) 
           <div style={s.roleGrid}>
             {([
               { key: 'renter', emoji: <IconPackage size={32} />, title: '租用者', desc: '需要運貨/送貨服務' },
-              { key: 'owner', emoji: <IconLargeTruck size={32} />, title: '車主', desc: '提供貨Van 服務' },
+              { key: 'driver', emoji: <IconLargeTruck size={32} />, title: '司機', desc: '提供貨Van 服務' },
             ] as const).map(r => (
               <div
                 key={r.key}

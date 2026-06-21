@@ -58,8 +58,8 @@ export default function ProfilePage() {
             <div style={s.userName}>{user.name || '未設定姓名'}</div>
             <div style={s.userRole}>
               <span style={s.roleBadge}>
-                {user.role === 'owner'
-                  ? <><IconLargeTruck size={14} color={colors.textSecondary} /> 車主</>
+                {user.role === 'driver'
+                  ? <><IconLargeTruck size={14} color={colors.textSecondary} /> 司機</>
                   : <><IconPackage size={14} color={colors.textSecondary} /> 租用者</>}
               </span>
             </div>
@@ -114,7 +114,7 @@ export default function ProfilePage() {
       {/* Menu items */}
       <div style={s.menuSection}>
         <div style={s.cardTitle}>功能</div>
-        {user.role === 'owner' && (
+        {user.role === 'driver' && (
           <>
             <div style={s.menuItem} onClick={() => navigate('/my-vans')}>
               <div style={s.menuIconWrap}><IconLargeTruck size={20} color={colors.textPrimary} /></div>

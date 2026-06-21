@@ -10,13 +10,13 @@ import {
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase/config';
-import type { User } from '../types';
+import type { User, UserRole } from '../types';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, name: string, phone: string, role: 'owner' | 'renter') => Promise<void>;
+  signUp: (email: string, password: string, name: string, phone: string, role: 'driver' | 'renter') => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   /** Initialize GIS + render a real Google Sign-In button into the given container. */
   renderGoogleButton: (
@@ -28,6 +28,19 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+/**
+ * Normalize legacy role values to the current UserRole enum.
+ * - 'owner' → 'driver' (legacy: car owner role was renamed to driver)
+ * - unknown values → 'renter' (safe default; admin role only set explicitly)
+ * Returns null if input is null/undefined.
+ */
+function normalizeRole(role: unknown): UserRole | null {
+  if (role == null) return null;
+  if (role === 'driver' || role === 'renter' || role === 'admin') return role;
+  if (role === 'owner') return 'driver';
+  return 'renter';
+}
 
 // Google Identity Services (GIS) — loaded dynamically to bypass Firebase Auth's OAuth popup issues
 declare global {
@@ -190,7 +203,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUserLoading(true);
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
-          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as User);
+          const rawData = userDoc.data();
+          const normalizedRole = normalizeRole(rawData.role);
+          // Self-heal legacy 'owner' role (or unknown values) in Firestore.
+          if (normalizedRole !== rawData.role) {
+            try {
+              await setDoc(doc(db, 'users', firebaseUser.uid), { role: normalizedRole }, { merge: true });
+            } catch (err) {
+              console.warn('[Auth] Failed to normalize user role:', err);
+            }
+          }
+          setUser({ uid: firebaseUser.uid, ...rawData, role: normalizedRole! } as User);
         } else {
           // New Google sign-in: create user doc with default role 'renter'.
           // Caller is expected to redirect to /onboarding to let the user pick.
@@ -223,7 +246,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     password: string,
     name: string,
     phone: string,
-    role: 'owner' | 'renter'
+    role: 'driver' | 'renter'
   ) => {
     const { user: firebaseUser } = await createUserWithEmailAndPassword(auth, email, password);
     await updateProfile(firebaseUser, { displayName: name });

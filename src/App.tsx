@@ -47,7 +47,7 @@ function AppShell() {
           </RouteGuard>
         } />
 
-        {/* 官網根 = 叫車畫面 (renter/admin), owner 跳 driver-jobs, 未登入跳 /login */}
+        {/* 官網根 = 叫車畫面 (renter/admin), driver 跳 driver-jobs, 未登入跳 /login */}
         <Route path="/" element={
           <RouteGuard allowedRoles={['renter', 'admin']} fallback="/driver-jobs">
             <OrderV2Demo />
@@ -87,19 +87,19 @@ function AppShell() {
           </RouteGuard>
         } />
 
-        {/* Owner/Admin only */}
+        {/* Driver/Admin only */}
         <Route path="/dashboard" element={
-          <RouteGuard allowedRoles={['owner', 'admin']} fallback="/">
+          <RouteGuard allowedRoles={['driver', 'admin']} fallback="/">
             <VanDashboard />
           </RouteGuard>
         } />
         <Route path="/driver-jobs" element={
-          <RouteGuard allowedRoles={['owner', 'admin']} fallback="/">
+          <RouteGuard allowedRoles={['driver', 'admin']} fallback="/">
             <DriverJobsPage />
           </RouteGuard>
         } />
         <Route path="/my-vans" element={
-          <RouteGuard allowedRoles={['owner', 'admin']} fallback="/">
+          <RouteGuard allowedRoles={['driver', 'admin']} fallback="/">
             <MyVansPage />
           </RouteGuard>
         } />
@@ -120,9 +120,9 @@ function AppShell() {
         {/* 舊 /order-v2 自動 redirect 去 /order (向後兼容, 之後可以拎走) */}
         <Route path="/order-v2" element={<Navigate to="/order" replace />} />
 
-        {/* Catch-all — owner → driver-jobs, others → home */}
+        {/* Catch-all — driver → driver-jobs, others → home */}
         <Route path="*" element={
-          user?.role === 'owner' ? <DriverJobsPage /> : <HomePage />
+          user?.role === 'driver' ? <DriverJobsPage /> : <HomePage />
         } />
       </Routes>
     </>

@@ -12,7 +12,7 @@ import type { VehicleType } from '../types';
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DriverState {
-  ownerId: string;
+  driverId: string;
   isOnline: boolean;
   currentVanId: string | null;
   vehicleType: VehicleType | null;
@@ -50,8 +50,8 @@ export class DriverError extends Error {
  * Call this on app startup / OnlineToggle mount.
  * Returns the repaired vanId if any, otherwise null.
  */
-export async function repairOrphanVan(ownerId: string): Promise<string | null> {
-  const driverRef = doc(db, 'drivers', ownerId);
+export async function repairOrphanVan(driverId: string): Promise<string | null> {
+  const driverRef = doc(db, 'drivers', driverId);
   let driverSnap: Awaited<ReturnType<typeof getDoc>>;
   try {
     driverSnap = await getDoc(driverRef);
@@ -85,7 +85,7 @@ export async function repairOrphanVan(ownerId: string): Promise<string | null> {
     return null;
   }
 
-  const van = vanSnap.data() as { isAvailable: boolean; ownerId: string };
+  const van = vanSnap.data() as { isAvailable: boolean; driverId: string };
   if (van.isAvailable) {
     // Van was somehow marked available while driver doc says online — fix it
     try {
@@ -102,18 +102,18 @@ export async function repairOrphanVan(ownerId: string): Promise<string | null> {
 /**
  * Driver goes online with a selected van.
  * - Repairs any orphan state first
- * - Sets driver/{ownerId} with online state
+ * - Sets driver/{driverId} with online state
  * - Marks the selected van as unavailable
  *
  * @throws DriverError if van not found, not owned, or not available
  */
 export async function goOnline(
-  ownerId: string,
+  driverId: string,
   vanId: string,
   vehicleType: VehicleType
 ): Promise<void> {
   // Repair any orphan state from previous sessions first
-  await repairOrphanVan(ownerId);
+  await repairOrphanVan(driverId);
 
   // Verify van ownership and availability
   const vanRef = doc(db, 'vans', vanId);
@@ -131,9 +131,9 @@ export async function goOnline(
     throw new DriverError('Van not found', DriverErrorCodes.VAN_NOT_AVAILABLE);
   }
 
-  const van = vanSnap.data() as { ownerId: string; isAvailable: boolean };
+  const van = vanSnap.data() as { driverId: string; isAvailable: boolean };
 
-  if (van.ownerId !== ownerId) {
+  if (van.driverId !== driverId) {
     throw new DriverError('You do not own this van', DriverErrorCodes.VAN_NOT_OWNED);
   }
 
@@ -142,10 +142,10 @@ export async function goOnline(
   }
 
   // Set driver online state
-  const driverRef = doc(db, 'drivers', ownerId);
+  const driverRef = doc(db, 'drivers', driverId);
   try {
     await setDoc(driverRef, {
-      ownerId,
+      driverId,
       isOnline: true,
       currentVanId: vanId,
       vehicleType: vehicleType ?? null,
@@ -168,13 +168,13 @@ export async function goOnline(
 
 /**
  * Driver goes offline.
- * - Clears driver/{ownerId} state
+ * - Clears driver/{driverId} state
  * - Marks the previously selected van as available again
  *
  * @throws DriverError if offline operation fails
  */
-export async function goOffline(ownerId: string): Promise<void> {
-  const driverRef = doc(db, 'drivers', ownerId);
+export async function goOffline(driverId: string): Promise<void> {
+  const driverRef = doc(db, 'drivers', driverId);
   let driverSnap: Awaited<ReturnType<typeof getDoc>>;
   try {
     driverSnap = await getDoc(driverRef);
@@ -220,11 +220,11 @@ export async function goOffline(ownerId: string): Promise<void> {
  * @throws DriverError if driver not online
  */
 export async function updateLocation(
-  ownerId: string,
+  driverId: string,
   lat: number,
   lng: number
 ): Promise<void> {
-  const driverRef = doc(db, 'drivers', ownerId);
+  const driverRef = doc(db, 'drivers', driverId);
   let driverSnap: Awaited<ReturnType<typeof getDoc>>;
   try {
     driverSnap = await getDoc(driverRef);
@@ -259,26 +259,32 @@ export async function updateLocation(
  * Subscribe to own driver state changes.
  */
 export function subscribeToDriver(
-  ownerId: string,
+  driverId: string,
   callback: (state: DriverState | null) => void
 ) {
-  const driverRef = doc(db, 'drivers', ownerId);
-  return onSnapshot(driverRef, (snap) => {
-    if (!snap.exists()) {
+  const driverRef = doc(db, 'drivers', driverId);
+  return onSnapshot(driverRef,
+    (snap) => {
+      if (!snap.exists()) {
+        callback(null);
+      } else {
+        const data = snap.data();
+        callback({
+          driverId: data.driverId,
+          isOnline: data.isOnline,
+          currentVanId: data.currentVanId,
+          vehicleType: data.vehicleType,
+          currentLat: data.currentLat,
+          currentLng: data.currentLng,
+          updatedAt: data.updatedAt,
+        });
+      }
+    },
+    (err) => {
+      console.error('[Firestore] subscribeToDriver error:', err);
       callback(null);
-    } else {
-      const data = snap.data();
-      callback({
-        ownerId: data.ownerId,
-        isOnline: data.isOnline,
-        currentVanId: data.currentVanId,
-        vehicleType: data.vehicleType,
-        currentLat: data.currentLat,
-        currentLng: data.currentLng,
-        updatedAt: data.updatedAt,
-      });
     }
-  });
+  );
 }
 
 // ─── Get driver state ─────────────────────────────────────────────────────────
@@ -286,13 +292,13 @@ export function subscribeToDriver(
 /**
  * Get current driver state (online/offline).
  */
-export async function getDriver(ownerId: string): Promise<DriverState | null> {
+export async function getDriver(driverId: string): Promise<DriverState | null> {
   try {
-    const snap = await getDoc(doc(db, 'drivers', ownerId));
+    const snap = await getDoc(doc(db, 'drivers', driverId));
     if (!snap.exists()) return null;
     const data = snap.data();
     return {
-      ownerId: data.ownerId,
+      driverId: data.driverId,
       isOnline: data.isOnline,
       currentVanId: data.currentVanId,
       vehicleType: data.vehicleType,

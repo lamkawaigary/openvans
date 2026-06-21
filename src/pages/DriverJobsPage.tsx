@@ -45,9 +45,9 @@ export default function DriverJobsPage() {
   const [isOnline, setIsOnline] = useState(false);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
 
-  // Redirect non-owners
+  // Redirect non-drivers
   useEffect(() => {
-    if (user && user.role !== 'owner') {
+    if (user && user.role !== 'driver') {
       navigate('/');
     }
   }, [user]);

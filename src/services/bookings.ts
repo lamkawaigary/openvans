@@ -59,27 +59,40 @@ export function subscribeToRenterBookings(
     where('renterId', '==', renterId),
     orderBy('createdAt', 'desc')
   );
-  return onSnapshot(q, (snap) => {
-    const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
-    callback(bookings);
-  });
+  return onSnapshot(q,
+    (snap) => {
+      const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+      callback(bookings);
+    },
+    (err) => {
+      // Without this handler, permission-denied / index errors silently fail.
+      console.error('[Firestore] subscribeToRenterBookings error:', err);
+      callback([]);
+    }
+  );
 }
 
 // ─── Subscribe to bookings for a van owner ────────────────────────────────────
 
-export function subscribeToOwnerBookings(
-  ownerId: string,
+export function subscribeToDriverBookings(
+  driverId: string,
   callback: (bookings: Booking[]) => void
 ) {
   const q = query(
     collection(db, 'bookings'),
-    where('ownerId', '==', ownerId),
+    where('driverId', '==', driverId),
     orderBy('createdAt', 'desc')
   );
-  return onSnapshot(q, (snap) => {
-    const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
-    callback(bookings);
-  });
+  return onSnapshot(q,
+    (snap) => {
+      const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+      callback(bookings);
+    },
+    (err) => {
+      console.error('[Firestore] subscribeToDriverBookings error:', err);
+      callback([]);
+    }
+  );
 }
 
 // ─── Subscribe to all pending bookings (for matching) ─────────────────────────
@@ -90,10 +103,19 @@ export function subscribeToPendingBookings(callback: (bookings: Booking[]) => vo
     where('status', '==', 'pending'),
     orderBy('createdAt', 'desc')
   );
-  return onSnapshot(q, (snap) => {
-    const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
-    callback(bookings);
-  });
+  return onSnapshot(q,
+    (snap) => {
+      const bookings = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Booking));
+      callback(bookings);
+    },
+    (err) => {
+      // Critical: if rules deny read for drivers (e.g. driverId undefined for
+      // pending bookings) this fires here instead of crashing the app. Without
+      // this handler the listener silently dies and the UI shows "0 jobs".
+      console.error('[Firestore] subscribeToPendingBookings error:', err);
+      callback([]);
+    }
+  );
 }
 
 // ─── Valid status transitions ──────────────────────────────────────────────────
@@ -231,7 +253,7 @@ export async function updateBookingStatus(
 export async function cancelBooking(
   bookingId: string,
   actorId: string,
-  actorRole: 'renter' | 'owner'
+  actorRole: 'renter' | 'driver'
 ): Promise<void> {
   const docRef = doc(db, 'bookings', bookingId);
 
@@ -253,13 +275,14 @@ export async function cancelBooking(
 
   // Verify actor is authorized
   const isRenter = current.renterId === actorId;
-  const isOwner = current.ownerId === actorId;
+  // driverId field semantically represents the assigned driver's uid.
+  const isAssignedDriver = current.driverId === actorId;
 
   if (actorRole === 'renter' && !isRenter) {
     throw new BookingError('Not authorized', BookingErrorCodes.PERMISSION_DENIED, 403);
   }
 
-  if (actorRole === 'owner' && !isOwner) {
+  if (actorRole === 'driver' && !isAssignedDriver) {
     throw new BookingError('Not authorized', BookingErrorCodes.PERMISSION_DENIED, 403);
   }
 
@@ -305,7 +328,7 @@ export async function cancelBooking(
  */
 export async function acceptBooking(
   bookingId: string,
-  ownerId: string,
+  driverId: string,
   vanId: string
 ): Promise<void> {
   const bookingRef = doc(db, 'bookings', bookingId);
@@ -338,7 +361,7 @@ export async function acceptBooking(
   // Verify driver is online
   let driverSnap: Awaited<ReturnType<typeof getDoc>>;
   try {
-    driverSnap = await getDoc(doc(db, 'drivers', ownerId));
+    driverSnap = await getDoc(doc(db, 'drivers', driverId));
   } catch (err) {
     throw new BookingError(
       `Failed to fetch driver state: ${(err as Error).message}`,
@@ -368,9 +391,9 @@ export async function acceptBooking(
     throw new BookingError('Van not found', BookingErrorCodes.NOT_FOUND, 404);
   }
 
-  const van = vanSnap.data() as { ownerId: string };
+  const van = vanSnap.data() as { driverId: string };
 
-  if (van.ownerId !== ownerId) {
+  if (van.driverId !== driverId) {
     throw new BookingError(
       'You do not own this van',
       BookingErrorCodes.VAN_NOT_OWNED,
@@ -382,13 +405,13 @@ export async function acceptBooking(
   const existingHistory = booking.statusHistory ?? [];
   const mergedHistory = [
     ...existingHistory,
-    buildHistoryEntry('confirmed', ownerId),
+    buildHistoryEntry('confirmed', driverId),
   ];
 
   try {
     await updateDoc(bookingRef, {
       status: 'confirmed',
-      ownerId,
+      driverId,
       vanId,
       confirmedAt: new Date().toISOString(),
       statusHistory: mergedHistory,
@@ -411,7 +434,7 @@ export async function acceptBooking(
  */
 export async function startBooking(
   bookingId: string,
-  ownerId: string
+  driverId: string
 ): Promise<void> {
   const docRef = doc(db, 'bookings', bookingId);
 
@@ -431,7 +454,7 @@ export async function startBooking(
 
   const current = snap.data() as Booking;
 
-  if (current.ownerId !== ownerId) {
+  if (current.driverId !== driverId) {
     throw new BookingError('Not authorized', BookingErrorCodes.PERMISSION_DENIED, 403);
   }
 
@@ -445,7 +468,7 @@ export async function startBooking(
   const existingHistory = current.statusHistory ?? [];
   const mergedHistory = [
     ...existingHistory,
-    buildHistoryEntry('in_progress', ownerId),
+    buildHistoryEntry('in_progress', driverId),
   ];
 
   try {
@@ -472,7 +495,7 @@ export async function startBooking(
  */
 export async function completeBooking(
   bookingId: string,
-  ownerId: string
+  driverId: string
 ): Promise<void> {
   const docRef = doc(db, 'bookings', bookingId);
 
@@ -492,7 +515,7 @@ export async function completeBooking(
 
   const current = snap.data() as Booking;
 
-  if (current.ownerId !== ownerId) {
+  if (current.driverId !== driverId) {
     throw new BookingError('Not authorized', BookingErrorCodes.PERMISSION_DENIED, 403);
   }
 
@@ -506,7 +529,7 @@ export async function completeBooking(
   const existingHistory = current.statusHistory ?? [];
   const mergedHistory = [
     ...existingHistory,
-    buildHistoryEntry('completed', ownerId),
+    buildHistoryEntry('completed', driverId),
   ];
 
   try {
@@ -551,10 +574,10 @@ export async function getBooking(bookingId: string): Promise<Booking> {
 
 export async function getBookingsByStatus(
   userId: string,
-  role: 'owner' | 'renter',
+  role: 'driver' | 'renter',
   status: BookingStatus
 ): Promise<Booking[]> {
-  const field = role === 'owner' ? 'ownerId' : 'renterId';
+  const field = role === 'driver' ? 'driverId' : 'renterId';
   const q = query(
     collection(db, 'bookings'),
     where(field, '==', userId),

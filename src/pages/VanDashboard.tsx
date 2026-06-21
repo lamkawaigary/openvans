@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSideMenu } from '../context/SideMenuContext';
-import { subscribeToOwnerBookings, acceptBooking, startBooking, completeBooking, BookingError } from '../services/bookings';
+import { subscribeToDriverBookings, acceptBooking, startBooking, completeBooking, BookingError } from '../services/bookings';
 import { IconMail, IconLargeTruck, IconCheck, IconPackage, VehicleTypeIcon } from '../components/Icon';
 import { subscribeToDriver, updateLocation, type DriverState } from '../services/drivers';
 import { notifyBookingAccepted, notifyDriverEnRoute, notifyBookingCompleted } from '../services/notifications';
@@ -44,11 +44,11 @@ export default function VanDashboard() {
 
   // Subscribe to owner's bookings (all - filter by vehicle type when online)
   useEffect(() => {
-    if (!user || user.role !== 'owner') {
+    if (!user || user.role !== 'driver') {
       navigate('/');
       return;
     }
-    const unsub = subscribeToOwnerBookings(user.uid, (data) => {
+    const unsub = subscribeToDriverBookings(user.uid, (data) => {
       setBookings(data);
       setLoading(false);
     });
@@ -187,7 +187,7 @@ export default function VanDashboard() {
             <DashboardCard
               key={b.id}
               booking={b}
-              isOwner
+              isDriver
               isOnline={isOnline}
               onAccept={() => {
                 if (!user || !driverState?.currentVanId) return;
@@ -235,14 +235,14 @@ export default function VanDashboard() {
 
 interface DashboardCardProps {
   booking: Booking;
-  isOwner?: boolean;
+  isDriver?: boolean;
   isOnline?: boolean;
   onAccept?: () => void;
   onStart?: () => void;
   onComplete?: () => void;
 }
 
-function DashboardCard({ booking, isOwner, isOnline, onAccept, onStart, onComplete }: DashboardCardProps) {
+function DashboardCard({ booking, isDriver, isOnline, onAccept, onStart, onComplete }: DashboardCardProps) {
   const badge = getStatusBadge(booking.status);
   return (
     <div style={styles.card}>
@@ -275,7 +275,7 @@ function DashboardCard({ booking, isOwner, isOnline, onAccept, onStart, onComple
       </div>
 
       {/* Actions */}
-      {isOwner && (
+      {isDriver && (
         <div style={{ display: 'flex', gap: sp.xs, marginTop: sp.sm, paddingTop: sp.sm, borderTop: `1px solid ${colors.border}` }}>
           {booking.status === 'pending' && isOnline && (
             <button style={styles.primaryBtn} onClick={onAccept}><IconCheck size={14} /> 接受訂單</button>

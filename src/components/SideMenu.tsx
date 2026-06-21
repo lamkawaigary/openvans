@@ -54,7 +54,7 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
 
         {/* Nav Items — role-aware */}
         <nav style={styles.nav}>
-          {user?.role === 'owner' && (
+          {user?.role === 'driver' && (
             <>
               {[
                 { path: '/driver-jobs', label: '搶單', icon: <IconClipboard size={18} /> },
