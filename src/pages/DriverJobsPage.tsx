@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useSideMenu } from '../context/SideMenuContext';
-import { subscribeToPendingBookings, acceptBooking, BookingError } from '../services/bookings';
+import { subscribeToPendingBookings, subscribeToDriverBookings, acceptBooking, BookingError } from '../services/bookings';
 import { subscribeToDriver, type DriverState } from '../services/drivers';
 import { notifyBookingAccepted } from '../services/notifications';
 import type { Booking } from '../types';
@@ -74,6 +74,19 @@ export default function DriverJobsPage() {
     });
     const timer = setTimeout(() => setLoading(false), 5000);
     return () => { clearTimeout(timer); unsub(); };
+  }, [user]);
+
+  // Track driver's own accepted bookings (for stats card + link to /trips).
+  // Subscribes regardless of online state so the count is always visible.
+  const [myBookingsCount, setMyBookingsCount] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    const unsub = subscribeToDriverBookings(user.uid, (bookings) => {
+      // Count active bookings (confirmed + in_progress) — most relevant for driver
+      const active = bookings.filter(b => b.status === 'confirmed' || b.status === 'in_progress').length;
+      setMyBookingsCount(active);
+    });
+    return unsub;
   }, [user]);
 
   // Filter: only bookings matching driver's vehicle type
@@ -164,6 +177,37 @@ export default function DriverJobsPage() {
             <div style={{ fontSize: 11, fontWeight: 600, color: colors.textSecondary, marginTop: 2 }}>你的車型</div>
           </div>
         )}
+      </div>
+
+      {/* ── My Bookings Quick Access ── */}
+      <div
+        data-testid="my-bookings-link"
+        onClick={() => navigate('/trips')}
+        style={{
+          ...styles.card,
+          margin: `0 ${sp.md}px ${sp.sm}px`,
+          padding: `${sp.md}px`,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          background: myBookingsCount > 0 ? colors.brandLight : colors.background,
+          border: myBookingsCount > 0 ? `1.5px solid ${colors.brand}` : `1px solid ${colors.border}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: rd.full,
+            background: myBookingsCount > 0 ? colors.brand : colors.textMuted,
+            color: colors.surface, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 16, fontWeight: 800,
+          }}>{myBookingsCount}</div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: colors.textPrimary }}>我的訂單</div>
+            <div style={{ fontSize: 11, color: colors.textSecondary }}>查看已接 / 進行中 / 已完成</div>
+          </div>
+        </div>
+        <span style={{ fontSize: 18, color: colors.textMuted }}>›</span>
       </div>
 
       {/* ── List ── */}
