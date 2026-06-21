@@ -71,12 +71,16 @@ export default function TripDetailPage() {
     if (maxDiff === 0) return;
 
     const mapDiv = mapRef.current.getDiv();
-    const shorterAxis = Math.min(mapDiv.offsetWidth, mapDiv.offsetHeight);
-    // Route should cover ~70% of the shorter axis (15% margin on each end)
-    const targetPixels = shorterAxis * 0.7;
+    // Reserve ~60px for Google Maps UI overlays (zoom buttons + attribution)
+    // which steal usable vertical space on wide-short containers.
+    const CONTROL_HEIGHT = 60;
+    const usableHeight = Math.max(100, mapDiv.offsetHeight - CONTROL_HEIGHT);
+    const shorterAxis = Math.min(mapDiv.offsetWidth, usableHeight);
+    // Route should cover ~50% of the shorter axis (25% combined margin)
+    const targetPixels = shorterAxis * 0.5;
     const idealZoom = Math.log2((targetPixels * 360) / (maxDiff * 256));
-    // Clamp to a reasonable range so we never end up on a degenerate zoom
-    const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom)));
+    // One level less than ideal so route sits well within margin
+    const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom) - 1));
 
     const center = {
       lat: (pickupCoord.lat + dropoffCoord.lat) / 2,
