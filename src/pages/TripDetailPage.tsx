@@ -63,24 +63,23 @@ export default function TripDetailPage() {
   //         zoom   = log2(...)
   //
   // This is more predictable than fitBounds() for wide-short containers.
-  useEffect(() => {
-    if (!mapReady || !mapRef.current || !pickupCoord || !dropoffCoord) return;
-
+  // Position map: shared function used by both onLoad (immediate) and useEffect
+  // (when booking updates). Computes zoom calibrated to leave ~25% margin on
+  // shorter axis. Reserves 60px for Google Maps UI overlays (zoom buttons +
+  // attribution).
+  const positionMap = (map: google.maps.Map) => {
+    if (!pickupCoord || !dropoffCoord) return;
     const latDiff = Math.abs(pickupCoord.lat - dropoffCoord.lat);
     const lngDiff = Math.abs(pickupCoord.lng - dropoffCoord.lng);
     const maxDiff = Math.max(latDiff, lngDiff);
     if (maxDiff === 0) return;
 
-    const mapDiv = mapRef.current.getDiv();
-    // Reserve ~60px for Google Maps UI overlays (zoom buttons + attribution)
-    // which steal usable vertical space on wide-short containers.
+    const mapDiv = map.getDiv();
     const CONTROL_HEIGHT = 60;
     const usableHeight = Math.max(100, mapDiv.offsetHeight - CONTROL_HEIGHT);
     const shorterAxis = Math.min(mapDiv.offsetWidth, usableHeight);
-    // Route should cover ~50% of the shorter axis (25% combined margin)
     const targetPixels = shorterAxis * 0.5;
     const idealZoom = Math.log2((targetPixels * 360) / (maxDiff * 256));
-    // One level less than ideal so route sits well within margin
     const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom) - 1));
 
     const center = {
@@ -88,12 +87,18 @@ export default function TripDetailPage() {
       lng: (pickupCoord.lng + dropoffCoord.lng) / 2,
     };
 
-    // Use setOptions for atomic center+zoom update (avoids race with animation)
-    mapRef.current.setOptions({ center, zoom });
-    // Debug: expose actual state for verification
+    map.setOptions({ center, zoom });
     mapDiv.setAttribute('data-zoom', String(zoom));
     mapDiv.setAttribute('data-center', `${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
-    console.log('[TripDetailPage] Map positioned', { zoom, center, maxDiff, shorterAxis });
+    console.log('[TripDetailPage] Map positioned', { zoom, center, maxDiff: maxDiff.toFixed(4), shorterAxis });
+  };
+
+  // Re-position when coords change (e.g. booking re-fetched). Gated on mapReady
+  // so we only run after the GoogleMap instance exists.
+  useEffect(() => {
+    if (mapReady && mapRef.current && pickupCoord && dropoffCoord) {
+      positionMap(mapRef.current);
+    }
   }, [mapReady, booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
@@ -178,7 +183,12 @@ export default function TripDetailPage() {
                 mapContainerStyle={s.mapContainer}
                 center={mapCenter}
                 zoom={12}
-                onLoad={(map) => { mapRef.current = map; setMapReady(true); }}
+                onLoad={(map) => {
+                  mapRef.current = map;
+                  setMapReady(true);
+                  // Position immediately if we already have coords
+                  positionMap(map);
+                }}
                 onUnmount={() => { mapRef.current = null; setMapReady(false); }}
                 options={{
                   disableDefaultUI: true,
