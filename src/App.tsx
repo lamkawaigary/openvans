@@ -15,7 +15,6 @@ import TripsPage from './pages/TripsPage';
 import OrderV2Demo from './pages/OrderV2Demo';
 import TripDetailPage from './pages/TripDetailPage';
 import ProfilePage from './pages/ProfilePage';
-import VanDashboard from './pages/VanDashboard';
 import DriverJobsPage from './pages/DriverJobsPage';
 import MyVansPage from './pages/MyVansPage';
 import AdminDashboard from './pages/AdminDashboard';
@@ -88,11 +87,6 @@ function AppShell() {
         } />
 
         {/* Driver/Admin only */}
-        <Route path="/dashboard" element={
-          <RouteGuard allowedRoles={['driver', 'admin']} fallback="/">
-            <VanDashboard />
-          </RouteGuard>
-        } />
         <Route path="/driver-jobs" element={
           <RouteGuard allowedRoles={['driver', 'admin']} fallback="/">
             <DriverJobsPage />

@@ -136,7 +136,7 @@ export default function DriverJobsPage() {
             <span style={{ fontWeight: 600, color: '#92400E', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}><IconDot size={12} color="#DC2626" /> 請先上線再接單</span>
             <button
               style={{ background: colors.warning, color: '#fff', border: 'none', borderRadius: rd.sm, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/my-vans')}
             >去上線</button>
           </div>
         ) : (

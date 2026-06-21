@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { colors, sp, rd } from '../styles';
 import {
-  IconClipboard, IconTruck, IconChart, IconUser,
+  IconClipboard, IconTruck, IconUser,
   IconHome, IconLargeTruck, IconWrench,
   IconSettings, IconChat, IconDocument, IconLogout,
 } from './Icon';
@@ -59,7 +59,6 @@ export default function SideMenu({ open, onClose }: SideMenuProps) {
               {[
                 { path: '/driver-jobs', label: '搶單', icon: <IconClipboard size={18} /> },
                 { path: '/my-vans', label: '我的車隊', icon: <IconTruck size={18} /> },
-                { path: '/dashboard', label: '車輛Dashboard', icon: <IconChart size={18} /> },
                 { path: '/profile', label: '個人資料', icon: <IconUser size={18} /> },
               ].map(item => {
                 const isActive = location.pathname === item.path;
