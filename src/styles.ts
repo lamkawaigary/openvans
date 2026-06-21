@@ -619,4 +619,9 @@ export const styles: Record<string, any> = {
   pagePaddingLg: {
     padding: `0 ${sp.lg}`,
   },
-}
+
+  // --- Aliases for top-level style functions ---
+  // Pre-existing bug fix: DriverJobsPage and VanDashboard use styles.badge(...)
+  // but badge was a top-level export. Aliasing here to keep those callers working.
+  badge,
+};
