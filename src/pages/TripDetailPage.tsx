@@ -184,10 +184,17 @@ export default function TripDetailPage() {
                 center={mapCenter}
                 zoom={12}
                 onLoad={(map) => {
+                  console.log('[TripDetailPage] GoogleMap onLoad fired', { 
+                    hasMapRefBefore: !!mapRef.current,
+                    hasPickup: !!pickupCoord, 
+                    hasDropoff: !!dropoffCoord 
+                  });
                   mapRef.current = map;
                   setMapReady(true);
-                  // Position immediately if we already have coords
                   positionMap(map);
+                  console.log('[TripDetailPage] After positionMap call', { 
+                    hasMapRefAfter: !!mapRef.current
+                  });
                 }}
                 onUnmount={() => { mapRef.current = null; setMapReady(false); }}
                 options={{
