@@ -51,26 +51,40 @@ export default function TripDetailPage() {
     ? { lat: (pickupCoord.lat + dropoffCoord.lat) / 2, lng: (pickupCoord.lng + dropoffCoord.lng) / 2 }
     : pickupCoord || dropoffCoord || { lat: 22.3193, lng: 114.1694 };
 
-  // Auto-position map: use fitBounds with adequate padding so the entire
-  // route (markers + polyline) is visible with breathing room on all sides.
-  // The previous setCenter + setZoom approach hugged the route too tightly
-  // for wide-short containers (e.g. 468×220 mobile) — markers got cut off.
-  // fitBounds is aspect-aware: it computes zoom from the bounds while keeping
-  // the requested padding in pixels on every side.
+  // Auto-position map: setCenter(midpoint) + zoom calibrated to make the
+  // route cover ~70% of the SHORTER axis of the map. This guarantees visible
+  // margin (~30% combined) on both sides of the route regardless of map
+  // aspect ratio.
+  //
+  // Math: at zoom N, 1 degree of lat/lng ≈ (256 * 2^N / 360) px (Mercator).
+  // Solve:  maxDiff * (256 * 2^zoom / 360) = targetPixels
+  //         2^zoom = (targetPixels * 360) / (maxDiff * 256)
+  //         zoom   = log2(...)
+  //
+  // This is more predictable than fitBounds() for wide-short containers.
   useEffect(() => {
     if (!mapRef.current || !pickupCoord || !dropoffCoord) return;
 
-    const bounds = new google.maps.LatLngBounds();
-    bounds.extend(pickupCoord);
-    bounds.extend(dropoffCoord);
+    const latDiff = Math.abs(pickupCoord.lat - dropoffCoord.lat);
+    const lngDiff = Math.abs(pickupCoord.lng - dropoffCoord.lng);
+    const maxDiff = Math.max(latDiff, lngDiff);
+    if (maxDiff === 0) return;
 
-    // Calculate padding relative to map container. For a 220px-height map
-    // (mobile), this gives ~55px top/bottom + 50px left/right of breathing
-    // room — enough to keep markers clear of edges regardless of orientation.
     const mapDiv = mapRef.current.getDiv();
-    const padding = Math.max(48, Math.floor(Math.min(mapDiv.offsetWidth, mapDiv.offsetHeight) * 0.22));
+    const shorterAxis = Math.min(mapDiv.offsetWidth, mapDiv.offsetHeight);
+    // Route should cover ~70% of the shorter axis (15% margin on each end)
+    const targetPixels = shorterAxis * 0.7;
+    const idealZoom = Math.log2((targetPixels * 360) / (maxDiff * 256));
+    // Clamp to a reasonable range so we never end up on a degenerate zoom
+    const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom)));
 
-    mapRef.current.fitBounds(bounds, padding);
+    const center = {
+      lat: (pickupCoord.lat + dropoffCoord.lat) / 2,
+      lng: (pickupCoord.lng + dropoffCoord.lng) / 2,
+    };
+
+    mapRef.current.setCenter(center);
+    mapRef.current.setZoom(zoom);
   }, [booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
