@@ -18,6 +18,7 @@ export default function TripDetailPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [acting, setActing] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -63,7 +64,7 @@ export default function TripDetailPage() {
   //
   // This is more predictable than fitBounds() for wide-short containers.
   useEffect(() => {
-    if (!mapRef.current || !pickupCoord || !dropoffCoord) return;
+    if (!mapReady || !mapRef.current || !pickupCoord || !dropoffCoord) return;
 
     const latDiff = Math.abs(pickupCoord.lat - dropoffCoord.lat);
     const lngDiff = Math.abs(pickupCoord.lng - dropoffCoord.lng);
@@ -93,7 +94,7 @@ export default function TripDetailPage() {
     mapDiv.setAttribute('data-zoom', String(zoom));
     mapDiv.setAttribute('data-center', `${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
     console.log('[TripDetailPage] Map positioned', { zoom, center, maxDiff, shorterAxis });
-  }, [booking?.id, pickupCoord, dropoffCoord]);
+  }, [mapReady, booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
     if (!booking || !user) return;
@@ -177,8 +178,8 @@ export default function TripDetailPage() {
                 mapContainerStyle={s.mapContainer}
                 center={mapCenter}
                 zoom={12}
-                onLoad={(map) => { mapRef.current = map; }}
-                onUnmount={() => { mapRef.current = null; }}
+                onLoad={(map) => { mapRef.current = map; setMapReady(true); }}
+                onUnmount={() => { mapRef.current = null; setMapReady(false); }}
                 options={{
                   disableDefaultUI: true,
                   zoomControl: true,
