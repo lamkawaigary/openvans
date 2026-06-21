@@ -51,36 +51,26 @@ export default function TripDetailPage() {
     ? { lat: (pickupCoord.lat + dropoffCoord.lat) / 2, lng: (pickupCoord.lng + dropoffCoord.lng) / 2 }
     : pickupCoord || dropoffCoord || { lat: 22.3193, lng: 114.1694 };
 
-  // Auto-position map: center at midpoint of route + dynamic zoom based
-  // on distance. This keeps the route in the middle of the viewport with
-  // adequate padding on all sides, instead of fitBounds() which can hug
-  // edges on wide-short containers (e.g. 360x220 mobile).
+  // Auto-position map: use fitBounds with adequate padding so the entire
+  // route (markers + polyline) is visible with breathing room on all sides.
+  // The previous setCenter + setZoom approach hugged the route too tightly
+  // for wide-short containers (e.g. 468×220 mobile) — markers got cut off.
+  // fitBounds is aspect-aware: it computes zoom from the bounds while keeping
+  // the requested padding in pixels on every side.
   useEffect(() => {
     if (!mapRef.current || !pickupCoord || !dropoffCoord) return;
 
-    // Pick zoom level based on lat/lng spread (rough proxy for distance)
-    // Hong Kong metro area: 0.1 lat ≈ 11km, 0.1 lng ≈ 11km
-    const latDiff = Math.abs(pickupCoord.lat - dropoffCoord.lat);
-    const lngDiff = Math.abs(pickupCoord.lng - dropoffCoord.lng);
-    const maxDiff = Math.max(latDiff, lngDiff);
+    const bounds = new google.maps.LatLngBounds();
+    bounds.extend(pickupCoord);
+    bounds.extend(dropoffCoord);
 
-    let zoom: number;
-    if (maxDiff > 0.5) zoom = 9;        // > 55km
-    else if (maxDiff > 0.25) zoom = 10; // > 28km
-    else if (maxDiff > 0.12) zoom = 11; // > 13km
-    else if (maxDiff > 0.05) zoom = 12; // > 5.5km
-    else if (maxDiff > 0.02) zoom = 13; // > 2.2km
-    else if (maxDiff > 0.008) zoom = 14; // > 0.9km
-    else zoom = 15;                    // < 0.9km (very short route)
+    // Calculate padding relative to map container. For a 220px-height map
+    // (mobile), this gives ~55px top/bottom + 50px left/right of breathing
+    // room — enough to keep markers clear of edges regardless of orientation.
+    const mapDiv = mapRef.current.getDiv();
+    const padding = Math.max(48, Math.floor(Math.min(mapDiv.offsetWidth, mapDiv.offsetHeight) * 0.22));
 
-    // Compute midpoint so route sits in the middle of the viewport
-    const center = {
-      lat: (pickupCoord.lat + dropoffCoord.lat) / 2,
-      lng: (pickupCoord.lng + dropoffCoord.lng) / 2,
-    };
-
-    mapRef.current.setCenter(center);
-    mapRef.current.setZoom(zoom);
+    mapRef.current.fitBounds(bounds, padding);
   }, [booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
