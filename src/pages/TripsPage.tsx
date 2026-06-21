@@ -102,8 +102,8 @@ export default function TripsPage() {
               </button>
             )}
             {user?.role === 'driver' && (
-              <button style={styles.publishBtn} onClick={() => navigate('/dashboard')}>
-                查看 Dashboard →
+              <button style={styles.publishBtn} onClick={() => navigate('/driver-jobs')}>
+                去搶單 →
               </button>
             )}
           </div>
