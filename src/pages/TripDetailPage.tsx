@@ -87,8 +87,12 @@ export default function TripDetailPage() {
       lng: (pickupCoord.lng + dropoffCoord.lng) / 2,
     };
 
-    mapRef.current.setCenter(center);
-    mapRef.current.setZoom(zoom);
+    // Use setOptions for atomic center+zoom update (avoids race with animation)
+    mapRef.current.setOptions({ center, zoom });
+    // Debug: expose actual state for verification
+    mapDiv.setAttribute('data-zoom', String(zoom));
+    mapDiv.setAttribute('data-center', `${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
+    console.log('[TripDetailPage] Map positioned', { zoom, center, maxDiff, shorterAxis });
   }, [booking?.id, pickupCoord, dropoffCoord]);
 
   const handleStart = async () => {
