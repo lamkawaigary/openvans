@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
-import { getBooking, cancelBooking } from '../services/bookings';
+import { getBooking, cancelBooking, startBooking, completeBooking } from '../services/bookings';
 import { IconPackage } from '../components/Icon';
 import type { Booking } from '../types';
 import { colors, sp, rd } from '../styles';
@@ -16,6 +16,7 @@ export default function TripDetailPage() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [acting, setActing] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -34,6 +35,40 @@ export default function TripDetailPage() {
       showNotification({ title: '取消失敗', body: '請重試', type: 'error' });
     } finally {
       setCancelling(false);
+    }
+  };
+
+  // Driver-side lifecycle actions: confirmed → in_progress → completed.
+  const isDriverViewer = user && booking ? user.uid === booking.driverId : false;
+
+  const handleStart = async () => {
+    if (!booking || !user) return;
+    setActing(true);
+    try {
+      await startBooking(booking.id, user.uid);
+      showNotification({ title: '已開始送貨', body: '請準時到達取貨地點', type: 'success' });
+      const updated = await getBooking(booking.id);
+      if (updated) setBooking(updated);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '請重試';
+      showNotification({ title: '開始失敗', body: msg, type: 'error' });
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!booking || !user) return;
+    setActing(true);
+    try {
+      await completeBooking(booking.id, user.uid);
+      showNotification({ title: '已完成訂單', body: '感謝完成是次送貨', type: 'success' });
+      navigate('/trips');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '請重試';
+      showNotification({ title: '完成失敗', body: msg, type: 'error' });
+    } finally {
+      setActing(false);
     }
   };
 
@@ -147,6 +182,38 @@ export default function TripDetailPage() {
               {cancelling ? '取消中…' : '❌ 取消訂單'}
             </button>
           )}
+
+          {/* Driver lifecycle actions: confirmed → in_progress → completed */}
+          {isDriverViewer && booking.status === 'confirmed' && (
+            <button
+              data-testid="driver-start-btn"
+              style={acting ? s.startBtnDisabled : s.startBtn}
+              disabled={acting}
+              onClick={handleStart}
+            >
+              {acting ? '處理中…' : '🚚 開始送貨'}
+            </button>
+          )}
+
+          {isDriverViewer && booking.status === 'in_progress' && (
+            <button
+              data-testid="driver-complete-btn"
+              style={acting ? s.completeBtnDisabled : s.completeBtn}
+              disabled={acting}
+              onClick={handleComplete}
+            >
+              {acting ? '處理中…' : '✅ 完成訂單'}
+            </button>
+          )}
+
+          {isDriverViewer && (
+            <div style={s.manageHint}>
+              {booking.status === 'confirmed' && '接單後請準時開始送貨'}
+              {booking.status === 'in_progress' && '送貨完成後請按「完成訂單」'}
+              {booking.status === 'completed' && '✓ 訂單已完成'}
+              {booking.status === 'cancelled' && '此訂單已取消'}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -216,4 +283,9 @@ const s: Record<string, React.CSSProperties> = {
     border: '1.5px solid #fca5a5', background: '#fca5a5', color: '#7f1d1d',
     fontSize: 14, fontWeight: 700, cursor: 'not-allowed', marginTop: sp.sm,
   },
+  startBtn: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.brand, color: colors.primary, fontSize: 16, fontWeight: 800, cursor: 'pointer', marginTop: sp.sm, boxShadow: colors.shadowSm },
+  startBtnDisabled: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.lightGrey, color: colors.textMuted, fontSize: 16, fontWeight: 800, cursor: 'not-allowed', marginTop: sp.sm },
+  completeBtn: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.success, color: colors.white, fontSize: 16, fontWeight: 800, cursor: 'pointer', marginTop: sp.sm, boxShadow: colors.shadowSm },
+  completeBtnDisabled: { width: '100%', padding: '14px', borderRadius: rd.md, border: 'none', background: colors.lightGrey, color: colors.textMuted, fontSize: 16, fontWeight: 800, cursor: 'not-allowed', marginTop: sp.sm },
+  manageHint: { textAlign: 'center', fontSize: 13, color: colors.textSecondary, padding: '8px 0', fontStyle: 'italic', marginTop: sp.xs },
 };
