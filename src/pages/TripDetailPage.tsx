@@ -78,9 +78,12 @@ export default function TripDetailPage() {
     const CONTROL_HEIGHT = 60;
     const usableHeight = Math.max(100, mapDiv.offsetHeight - CONTROL_HEIGHT);
     const shorterAxis = Math.min(mapDiv.offsetWidth, usableHeight);
-    const targetPixels = shorterAxis * 0.5;
+    // Route should cover ~70% of the shorter axis (15% combined margin).
+    // Earlier 0.5 was too zoomed out (entire PRD shown); 0.7 is the sweet spot.
+    const targetPixels = shorterAxis * 0.7;
     const idealZoom = Math.log2((targetPixels * 360) / (maxDiff * 256));
-    const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom) - 1));
+    // No additional -1: CONTROL_HEIGHT subtract already provides enough margin
+    const zoom = Math.max(3, Math.min(18, Math.floor(idealZoom)));
 
     const center = {
       lat: (pickupCoord.lat + dropoffCoord.lat) / 2,
@@ -90,7 +93,9 @@ export default function TripDetailPage() {
     map.setOptions({ center, zoom });
     mapDiv.setAttribute('data-zoom', String(zoom));
     mapDiv.setAttribute('data-center', `${center.lat.toFixed(4)},${center.lng.toFixed(4)}`);
-    console.log('[TripDetailPage] Map positioned', { zoom, center, maxDiff: maxDiff.toFixed(4), shorterAxis });
+    // Debug attrs only set on the original (still-mounted) map div; React
+    // may remount the div on later renders so this is best-effort.
+    mapDiv.setAttribute('data-zoom', String(zoom));
   };
 
   // Re-position when coords change (e.g. booking re-fetched). Gated on mapReady
