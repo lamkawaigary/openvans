@@ -82,35 +82,6 @@ service cloud.firestore {
                     && resource.data.status in ['in_progress', 'completed']
                     && resource.data.status in ['confirmed', 'in_progress'];
 
-      // ─── Phase 8: Chat messages sub-collection ─────────────────────────
-      match /messages/{messageId} {
-        // Read: renter + assigned driver + admin only
-        allow read: if isSignedIn() && (
-                        get(/databases/$(database)/documents/bookings/$(bookingId)).data.renterId == request.auth.uid
-                        || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid
-                        || isAdmin()
-                    );
-
-        // Create: party posts under own role, booking must be confirmed/in_progress
-        allow create: if isSignedIn()
-                      && request.resource.data.senderId == request.auth.uid
-                      && request.resource.data.senderRole in ['renter', 'driver']
-                      && get(/databases/$(database)/documents/bookings/$(bookingId)).data.status in ['confirmed', 'in_progress']
-                      && (
-                        (request.resource.data.senderRole == 'renter'
-                         && get(/databases/$(database)/documents/bookings/$(bookingId)).data.renterId == request.auth.uid)
-                        ||
-                        (request.resource.data.senderRole == 'driver'
-                         && get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid)
-                      )
-                      && request.resource.data.keys().hasAll(['senderId', 'senderRole', 'createdAt'])
-                      && request.resource.data.text.size() <= 2000
-                      && (!('images' in request.resource.data) || request.resource.data.images.size() <= 3);
-
-        // No client update/delete — messages are immutable for audit
-        allow update, delete: if false;
-      }
-
       // ─── Phase 8: readState update (renter/driver marks own chat read) ──
       // Only allows touching the readState field. Other fields untouched.
       allow update: if isSignedIn()
@@ -119,6 +90,37 @@ service cloud.firestore {
                       resource.data.renterId == request.auth.uid
                       || resource.data.driverId == request.auth.uid
                     );
+    }
+
+    // ─── Phase 8: Chat messages (top-level match, NOT nested) ─────────────────
+    // Firestore rules do not allow nested match blocks, so this lives at the
+    // collection group root. Path: bookings/{bookingId}/messages/{messageId}.
+    match /bookings/{bookingId}/messages/{messageId} {
+      // Read: renter + assigned driver + admin only
+      allow read: if isSignedIn() && (
+                      get(/databases/$(database)/documents/bookings/$(bookingId)).data.renterId == request.auth.uid
+                      || get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid
+                      || isAdmin()
+                  );
+
+      // Create: party posts under own role, booking must be confirmed/in_progress
+      allow create: if isSignedIn()
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.senderRole in ['renter', 'driver']
+                    && get(/databases/$(database)/documents/bookings/$(bookingId)).data.status in ['confirmed', 'in_progress']
+                    && (
+                      (request.resource.data.senderRole == 'renter'
+                       && get(/databases/$(database)/documents/bookings/$(bookingId)).data.renterId == request.auth.uid)
+                      ||
+                      (request.resource.data.senderRole == 'driver'
+                       && get(/databases/$(database)/documents/bookings/$(bookingId)).data.driverId == request.auth.uid)
+                    )
+                    && request.resource.data.keys().hasAll(['senderId', 'senderRole', 'createdAt'])
+                    && request.resource.data.text.size() <= 2000
+                    && (!('images' in request.resource.data) || request.resource.data.images.size() <= 3);
+
+      // No client update/delete — messages are immutable for audit
+      allow update, delete: if false;
     }
 
     // ─── Config ────────────────────────────────────────────────────────────

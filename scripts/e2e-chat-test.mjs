@@ -10,18 +10,21 @@ const RENTER_PHONE = '+85298765432';
 const DRIVER_NAME = '測試司機E2E';
 const DRIVER_PHONE = '+85298765433';
 
+const FB_CFG = {
+  apiKey: 'AIzaSyCdnIS5AfQZTf6iQcD0gh1jHFqcJ6CX9LU',
+  authDomain: 'opensystem-857b2.firebaseapp.com',
+  projectId: 'opensystem-857b2',
+  storageBucket: 'opensystem-857b2.firebasestorage.app',
+  messagingSenderId: '828737485195',
+  appId: '1:828737485195:web:86d8fa39942d3a7dabd78e',
+};
+const CFG_STR = JSON.stringify(FB_CFG);
+
 const FIREBASE_AUTH_SCRIPT = `
 window.firebaseAuth = async (email, password, isSignUp) => {
   const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js');
   const { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js');
-  const app = initializeApp({
-    apiKey: 'AIzaSyCdnIS5AfQZTf6iQcD0gh1jHFqcJ6CX9LU',
-    authDomain: 'opensystem-857b2.firebaseapp.com',
-    projectId: 'opensystem-857b2',
-    storageBucket: 'opensystem-857b2.firebasestorage.app',
-    messagingSenderId: '828737485195',
-    appId: '1:828737485195:web:86d8fa39942d3a7dabd78e',
-  });
+  const app = initializeApp(${CFG_STR});
   const auth = getAuth(app);
   try {
     const cred = await signInWithEmailAndPassword(auth, email, password);
@@ -42,14 +45,7 @@ window.firebaseUpdateProfile = async (data) => {
   const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js');
   const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
   const { getAuth } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js');
-  const app = initializeApp({
-    apiKey: 'AIzaSyCdnIS5AfQZTf6iQcD0gh1jHFqcJ6CX9LU',
-    authDomain: 'opensystem-857b2.firebaseapp.com',
-    projectId: 'opensystem-857b2',
-    storageBucket: 'opensystem-857b2.firebasestorage.app',
-    messagingSenderId: '828737485195',
-    appId: '1:828737485195:web:86d8fa39942d3a7dabd78e',
-  });
+  const app = initializeApp(${CFG_STR});
   const auth = getAuth(app);
   const user = auth.currentUser;
   if (!user) return { ok: false, error: 'no current user' };
@@ -59,23 +55,33 @@ window.firebaseUpdateProfile = async (data) => {
 };
 window.firebaseCreateBooking = async (renterUid) => {
   const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js');
-  const { getFirestore, doc, setDoc } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
-  const app = initializeApp({
-    apiKey: 'AIzaSyCdnIS5AfQZTf6iQcD0gh1jHFqcJ6CX9LU',
-    authDomain: 'opensystem-857b2.firebaseapp.com',
-    projectId: 'opensystem-857b2',
-    storageBucket: 'opensystem-857b2.firebasestorage.app',
-    messagingSenderId: '828737485195',
-    appId: '1:828737485195:web:86d8fa39942d3a7dabd78e',
-  });
+  const { getFirestore, doc, setDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
+  const app = initializeApp(${CFG_STR});
   const db = getFirestore(app);
+  // Fetch renter user data to denormalize (matches new production flow)
+  let renterName, renterPhone;
+  try {
+    const snap = await getDoc(doc(db, 'users', renterUid));
+    if (snap.exists()) {
+      renterName = snap.data().name;
+      renterPhone = snap.data().phone;
+    }
+  } catch (e) {}
   const bookingId = 'e2e-test-' + Date.now();
   await setDoc(doc(db, 'bookings', bookingId), {
-    renterId: renterUid, status: 'pending',
-    pickupAddress: '中環 IFC', pickupLat: 22.2855, pickupLng: 114.1577,
-    dropoffAddress: '觀塘碼頭', dropoffLat: 22.3107, dropoffLng: 114.2211,
+    renterId: renterUid,
+    status: 'pending',
+    renterName,
+    renterPhone,
+    pickupAddress: '中環 IFC',
+    pickupLat: 22.2855,
+    pickupLng: 114.1577,
+    dropoffAddress: '觀塘碼頭',
+    dropoffLat: 22.3107,
+    dropoffLng: 114.2211,
     pickupTime: new Date(Date.now() + 86400000).toISOString(),
-    vehicleTypeRequired: 'light', totalLoadCount: 3,
+    vehicleTypeRequired: 'light',
+    totalLoadCount: 3,
     loads: [{ type: 'medium', count: 3 }],
     createdAt: new Date().toISOString(),
     estimatedPrice: 250,
@@ -85,29 +91,42 @@ window.firebaseCreateBooking = async (renterUid) => {
 };
 window.firebaseAcceptBooking = async (bookingId, driverUid) => {
   const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js');
-  const { getFirestore, doc, updateDoc } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
+  const { getFirestore, doc, updateDoc, getDoc } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
   const { getAuth } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js');
-  const app = initializeApp({
-    apiKey: 'AIzaSyCdnIS5AfQZTf6iQcD0gh1jHFqcJ6CX9LU',
-    authDomain: 'opensystem-857b2.firebaseapp.com',
-    projectId: 'opensystem-857b2',
-    storageBucket: 'opensystem-857b2.firebasestorage.app',
-    messagingSenderId: '828737485195',
-    appId: '1:828737485195:web:86d8fa39942d3a7dabd78e',
-  });
+  const app = initializeApp(${CFG_STR});
   const auth = getAuth(app);
   const user = auth.currentUser;
   if (!user || user.uid !== driverUid) return { ok: false, error: 'auth mismatch' };
   const db = getFirestore(app);
+  // Fetch driver user data to denormalize
+  let driverName, driverPhone;
+  try {
+    const snap = await getDoc(doc(db, 'users', driverUid));
+    if (snap.exists()) {
+      driverName = snap.data().name;
+      driverPhone = snap.data().phone;
+    }
+  } catch (e) {}
   await updateDoc(doc(db, 'bookings', bookingId), {
-    status: 'confirmed', driverId: driverUid,
+    status: 'confirmed',
+    driverId: driverUid,
     confirmedAt: new Date().toISOString(),
+    driverName,
+    driverPhone,
     statusHistory: [
       { status: 'pending', at: new Date(Date.now() - 60000).toISOString(), by: user.uid },
       { status: 'confirmed', at: new Date().toISOString(), by: user.uid },
     ],
   });
   return { ok: true };
+};
+window.readMessages = async (bookingId) => {
+  const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js');
+  const { getFirestore, collection, getDocs } = await import('https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js');
+  const app = initializeApp(${CFG_STR});
+  const db = getFirestore(app);
+  const snap = await getDocs(collection(db, 'bookings', bookingId, 'messages'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 };
 `;
 
@@ -144,6 +163,11 @@ async function main() {
   await renterPage.addScriptTag({ content: FIREBASE_AUTH_SCRIPT });
   await driverPage.addScriptTag({ content: FIREBASE_AUTH_SCRIPT });
 
+  // Quick sanity check
+  const renterCheck = await renterPage.evaluate(() => typeof window.firebaseAuth);
+  const driverCheck = await driverPage.evaluate(() => typeof window.firebaseAuth);
+  console.log(`[init] renter.firebaseAuth = ${renterCheck}, driver.firebaseAuth = ${driverCheck}`);
+
   console.log('\n=== Setup ===');
   const renter = await setup(renterPage, RENTER_EMAIL, RENTER_NAME, RENTER_PHONE, 'renter');
   record('Setup renter user', true, renter.uid);
@@ -154,21 +178,27 @@ async function main() {
   const bookingResult = await renterPage.evaluate(async ([renterUid]) => {
     return await window.firebaseCreateBooking(renterUid);
   }, [renter.uid]);
-  if (!bookingResult.ok) { record('Create booking', false, bookingResult.error); process.exit(1); }
+  if (!bookingResult.ok) {
+    record('Create booking', false, bookingResult.error);
+    process.exit(1);
+  }
   const bookingId = bookingResult.bookingId;
   record('Create booking (pending)', true, bookingId);
 
   const acceptResult = await driverPage.evaluate(async ([bookingId, driverUid]) => {
     return await window.firebaseAcceptBooking(bookingId, driverUid);
   }, [bookingId, driver.uid]);
-  if (!acceptResult.ok) { record('Driver accept booking', false, acceptResult.error); process.exit(1); }
+  if (!acceptResult.ok) {
+    record('Driver accept booking', false, acceptResult.error);
+    process.exit(1);
+  }
   record('Driver accept booking (confirmed)', true);
 
   console.log('\n=== Renter flow ===');
   await renterPage.goto(`${APP_URL}/trips/${bookingId}`, { waitUntil: 'domcontentloaded', timeout: 30000 });
   await renterPage.waitForTimeout(5000);
   console.log('  renter URL:', renterPage.url());
-  
+
   const renterHasChatPanel = await renterPage.locator('text=對話').count() > 0;
   record('Renter sees ChatPanel', renterHasChatPanel);
 
