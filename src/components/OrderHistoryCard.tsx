@@ -1,3 +1,6 @@
+import { useAuth } from '../context/AuthContext';
+import { getViewerRole } from '../utils/phoneFormat';
+import { useUnreadCount, UnreadBadge } from './UnreadBadge';
 import { colors, sp, rd } from '../styles';
 import type { Booking } from '../types';
 import { formatDate, getStatusBadge, VAN_TYPE_EMOJI } from '../utils/helpers';
@@ -11,8 +14,15 @@ export default function OrderHistoryCard({ booking, onClick }: OrderHistoryCardP
   const badge = getStatusBadge(booking.status);
   const dateStr = formatDate(booking.pickupTime);
 
+  // Phase 8 — chat unread count for this card
+  const { user } = useAuth();
+  const viewerRole = user ? getViewerRole(booking, user.uid) : null;
+  const unreadCount = useUnreadCount(booking.id, user?.uid ?? '', viewerRole);
+
   return (
     <div style={styles.card} onClick={onClick}>
+      {/* Phase 8 — unread badge overlay */}
+      <UnreadBadge count={unreadCount} />
       {/* Top row: date + vehicle + status badge + price */}
       <div style={styles.topRow}>
         <div style={styles.dateVan}>
@@ -55,6 +65,7 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     marginBottom: sp.sm,
     transition: 'all 0.15s ease',
+    position: 'relative',
   },
   topRow: {
     display: 'flex',

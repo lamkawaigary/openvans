@@ -150,6 +150,15 @@ export interface Booking {
 
   // Notes
   notes?: string;
+
+  // ─── Chat read state (Phase 8) ──────────────────────────────────────────────
+  // Tracks the last time each party opened the chat panel. Used to compute
+  // unread badge count: messages where senderId !== viewer && createdAt > lastReadAt.
+  // Multi-device sync: when user reads on phone A, phone B badge clears.
+  readState?: {
+    renter?: { lastReadAt: string };
+    driver?: { lastReadAt: string };
+  };
 }
 
 // ============================================
@@ -164,6 +173,39 @@ export interface AppNotification {
   isRead: boolean;
   createdAt: string;
   linkTo?: string;
+}
+
+// ============================================
+// Chat (Phase 8) — order-scoped messaging
+// ============================================
+
+/**
+ * A single chat message exchanged between renter and driver.
+ * Stored at /bookings/{bookingId}/messages/{messageId}.
+ * Immutable from the client side (rules deny update/delete).
+ */
+export interface ChatMessage {
+  id: string;
+  bookingId: string;          // denormalized for query convenience
+  senderId: string;           // uid of renter or driver
+  senderRole: 'renter' | 'driver';
+  senderName: string;         // snapshot at send time
+
+  text?: string;              // max 2000 chars
+  images?: ChatImage[];       // max 3
+
+  createdAt: string;          // ISO timestamp
+
+  /** Optional per-message read receipts. If absent, client uses booking.readState. */
+  readBy?: { [uid: string]: string };
+}
+
+export interface ChatImage {
+  url: string;                // Firebase Storage download URL
+  storagePath: string;        // e.g. "bookings/abc/messages/xyz/0.jpg" (for cleanup)
+  width: number;
+  height: number;
+  sizeBytes: number;          // post-compression size
 }
 
 // ============================================

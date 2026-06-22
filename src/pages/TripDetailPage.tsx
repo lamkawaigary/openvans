@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { getBooking, cancelBooking, startBooking, completeBooking } from '../services/bookings';
 import { IconPackage } from '../components/Icon';
+import ChatPanel from '../components/ChatPanel';
 import type { Booking } from '../types';
 import { colors, sp, rd } from '../styles';
 import { formatDateTime, getStatusBadge, VAN_TYPE_EMOJI } from '../utils/helpers';
@@ -305,6 +306,9 @@ export default function TripDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Phase 8 — Chat panel + direct call */}
+          <ChatPanel booking={booking} />
 
           {/* Order ID */}
           <div style={s.orderIdRow}>

@@ -12,9 +12,11 @@
   "dependencies": {
     "@react-google-maps/api": "^2.20.8",
     "@types/google.maps": "^3.65.0",
+    "browser-image-compression": "^2.0.2",
     "date-fns": "^4.3.0",
     "firebase": "^12.14.0",
     "leaflet": "^1.9.4",
+    "libphonenumber-js": "^1.13.7",
     "mapbox-gl": "^3.24.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",

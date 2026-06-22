@@ -157,3 +157,25 @@ export async function notifyBookingCompleted(
     linkTo: `/trips/${bookingId}`,
   });
 }
+
+/**
+ * Notify the recipient that a new chat message arrived.
+ * Triggered by client immediately after sendTextMessage / sendImageMessage.
+ * The bell UI subscribes to notifications so the user sees a toast + counter.
+ */
+export async function notifyNewMessage(
+  recipientId: string,
+  senderName: string,
+  bookingId: string,
+  preview: string
+): Promise<void> {
+  // Truncate preview to keep toast short
+  const trimmed = preview.length > 60 ? preview.slice(0, 57) + '…' : preview;
+  await createNotification({
+    userId: recipientId,
+    title: `💬 ${senderName} 傳咗訊息俾你`,
+    body: trimmed || '（圖片）',
+    type: 'info',
+    linkTo: `/trip/${bookingId}`,
+  });
+}
