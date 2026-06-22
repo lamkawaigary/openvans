@@ -10,8 +10,6 @@
 // Both renter and driver use this same component (viewer role inferred).
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../firebase/config';
 import { useAuth } from '../context/AuthContext';
 import {
   subscribeToMessages,
@@ -27,7 +25,7 @@ import { PhoneCallButton } from './PhoneCallButton';
 import { MessageBubble } from './MessageBubble';
 import { notifyNewMessage } from '../services/notifications';
 import { colors, sp, rd } from '../styles';
-import type { Booking, ChatMessage, User } from '../types';
+import type { Booking, ChatMessage } from '../types';
 
 interface ChatPanelProps {
   booking: Booking;
@@ -36,7 +34,6 @@ interface ChatPanelProps {
 export default function ChatPanel({ booking }: ChatPanelProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [otherUser, setOtherUser] = useState<User | null>(null);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +44,11 @@ export default function ChatPanel({ booking }: ChatPanelProps) {
   const otherPartyId = user ? getOtherPartyId(booking, user.uid) : null;
   const locked = isChatLocked(booking);
   const active = isChatActive(booking);
+
+  // Phase 8: pull name + phone for the other party from the denormalized booking
+  // fields (renterName/Phone, driverName/Phone), NOT from users/{id} (rules deny).
+  const otherPartyName = viewerRole === 'renter' ? booking.driverName : booking.renterName;
+  const otherPartyPhone = viewerRole === 'renter' ? booking.driverPhone : booking.renterPhone;
 
   // Subscribe messages + auto-scroll
   useEffect(() => {
@@ -60,19 +62,6 @@ export default function ChatPanel({ booking }: ChatPanelProps) {
     });
     return unsub;
   }, [booking.id]);
-
-  // Fetch other-party user (for PhoneCallButton + subtitle)
-  useEffect(() => {
-    if (!otherPartyId) {
-      setOtherUser(null);
-      return;
-    }
-    getDoc(doc(db, 'users', otherPartyId))
-      .then((snap) => {
-        if (snap.exists()) setOtherUser({ uid: snap.id, ...snap.data() } as User);
-      })
-      .catch(() => setOtherUser(null));
-  }, [otherPartyId]);
 
   // Mark as read whenever chat is open and there are messages
   const markRead = useCallback(() => {
@@ -138,12 +127,12 @@ export default function ChatPanel({ booking }: ChatPanelProps) {
         <div style={s.headerLeft}>
           <span style={s.titleIcon}>💬</span>
           <span style={s.title}>對話</span>
-          {otherUser && <span style={s.subtitle}>與 {otherUser.name}</span>}
+          {otherPartyName && <span style={s.subtitle}>與 {otherPartyName}</span>}
         </div>
-        {otherUser && (
+        {otherPartyPhone && (
           <PhoneCallButton
-            phone={otherUser.phone}
-            otherName={otherUser.name}
+            phone={otherPartyPhone}
+            otherName={otherPartyName}
             booking={booking}
             viewerUid={user.uid}
           />

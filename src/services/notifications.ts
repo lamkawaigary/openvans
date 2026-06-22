@@ -176,6 +176,6 @@ export async function notifyNewMessage(
     title: `💬 ${senderName} 傳咗訊息俾你`,
     body: trimmed || '（圖片）',
     type: 'info',
-    linkTo: `/trip/${bookingId}`,
+    linkTo: `/trips/${bookingId}`,
   });
 }

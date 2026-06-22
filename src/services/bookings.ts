@@ -171,8 +171,26 @@ export async function createBooking(
     ...(dropoffLng != null && { dropoffLng }),
   };
 
+  // Phase 8 — fetch renter's name/phone from their user doc (renter can read own doc)
+  // and denormalize into the booking so the driver can display them later without
+  // needing read access to the renter's user doc.
+  let renterName: string | undefined;
+  let renterPhone: string | undefined;
+  try {
+    const renterSnap = await getDoc(doc(db, 'users', data.renterId));
+    if (renterSnap.exists()) {
+      const u = renterSnap.data();
+      renterName = u.name;
+      renterPhone = u.phone;
+    }
+  } catch {
+    /* non-fatal */
+  }
+
   const ref = await addDoc(collection(db, 'bookings'), {
     ...cleanData,
+    ...(renterName && { renterName }),
+    ...(renterPhone && { renterPhone }),
     status: 'pending',
     statusHistory: [
       buildHistoryEntry('pending', data.renterId),
@@ -409,13 +427,33 @@ export async function acceptBooking(
   ];
 
   try {
-    await updateDoc(bookingRef, {
+    // Phase 8 — fetch driver's name/phone (driver can read own user doc) and
+    // denormalize so the renter can render the call button without needing
+    // read access to the driver's user doc.
+    let driverName: string | undefined;
+    let driverPhone: string | undefined;
+    try {
+      const driverUserSnap = await getDoc(doc(db, 'users', driverId));
+      if (driverUserSnap.exists()) {
+        const u = driverUserSnap.data();
+        driverName = u.name;
+        driverPhone = u.phone;
+      }
+    } catch {
+      /* non-fatal */
+    }
+
+    const updates: Record<string, unknown> = {
       status: 'confirmed',
       driverId,
       vanId,
       confirmedAt: new Date().toISOString(),
       statusHistory: mergedHistory,
-    } as Record<string, unknown>);
+    };
+    if (driverName) updates.driverName = driverName;
+    if (driverPhone) updates.driverPhone = driverPhone;
+
+    await updateDoc(bookingRef, updates);
   } catch (err) {
     throw new BookingError(
       `Failed to accept booking: ${(err as Error).message}`,

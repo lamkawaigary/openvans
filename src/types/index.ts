@@ -159,6 +159,15 @@ export interface Booking {
     renter?: { lastReadAt: string };
     driver?: { lastReadAt: string };
   };
+
+  // ─── Denormalized party contact info (Phase 8) ──────────────────────────────
+  // Snapshot of name + phone at booking create (renter) and driver accept (driver).
+  // Avoids the need for renter/driver to read counterpart's user doc (rules deny).
+  // ChatPanel reads these fields directly to render PhoneCallButton.
+  renterName?: string;
+  renterPhone?: string;
+  driverName?: string;
+  driverPhone?: string;
 }
 
 // ============================================
