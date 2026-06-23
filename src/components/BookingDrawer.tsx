@@ -184,11 +184,20 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
   const [locationLoading, setLocationLoading] = useState(false);
   // Map center adjustment mode — 'pickup' | 'dropoff' | 'stop:0' | 'stop:1' | 'stop:2' | null
   const [adjustingField, setAdjustingField] = useState<string | null>(null);
+  // Inline confirm for stop deletion — 防止誤刪中途站
+  const [confirmingDeleteStop, setConfirmingDeleteStop] = useState<number | null>(null);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<{ startY: number; startVh: number } | null>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
 
   const isHK = (lat: number, lng: number) => lat >= 22.1 && lat <= 22.6 && lng >= 113.8 && lng <= 114.5;
+
+  // Auto-clear stop delete confirmation when stop list changes (e.g. new stop added/removed)
+  useEffect(() => {
+    if (confirmingDeleteStop !== null && confirmingDeleteStop >= data.extraStops.length) {
+      setConfirmingDeleteStop(null);
+    }
+  }, [data.extraStops.length, confirmingDeleteStop]);
 
   // ─── Map center adjustment overlay ───────────────────────────────────────
   useEffect(() => {
@@ -665,10 +674,16 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
           )}
 
           {/* Extra stops list — shown between add stop button and dropoff */}
-          {data.extraStops.map((stop, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: '6px', padding: '6px 8px', background: '#FFFDE7', borderRadius: 8, border: '1px solid #FFD70033' }}>
-              <span style={{ fontSize: 11, color: '#FFD700', fontWeight: 700, minWidth: 16 }}>●</span>
-              <span style={{ flex: 1, fontSize: 13, color: colors.darkGrey }}>{stop}</span>
+          {data.extraStops.map((stop, i) => {
+            const isConfirmingDelete = confirmingDeleteStop === i;
+            return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: '6px', padding: '6px 8px', background: isConfirmingDelete ? '#FFEBEE' : '#FFFDE7', borderRadius: 8, border: isConfirmingDelete ? '1px solid #FF5252' : '1px solid #FFD70033', transition: 'background 0.15s, border 0.15s' }}>
+              <span style={{ fontSize: 11, color: isConfirmingDelete ? '#FF5252' : '#FFD700', fontWeight: 700, minWidth: 16 }}>●</span>
+              <span style={{ flex: 1, fontSize: 13, color: colors.darkGrey, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {isConfirmingDelete ? '確定要刪除此中途站？' : stop}
+              </span>
+              {!isConfirmingDelete && (
+              <>
               {/* Reorder buttons — larger touch targets for mobile */}
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
@@ -681,6 +696,7 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                     setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
                   }}
                   disabled={i === 0}
+                  aria-label="上移中途站"
                   style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: i === 0 ? '#ccc' : colors.darkGrey, cursor: i === 0 ? 'not-allowed' : 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >▲</button>
                 <button
@@ -693,10 +709,16 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                     setData(p => ({ ...p, extraStops: newStops, extraStopsCoord: newCoords }));
                   }}
                   disabled={i === data.extraStops.length - 1}
+                  aria-label="下移中途站"
                   style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: i === data.extraStops.length - 1 ? '#ccc' : colors.darkGrey, cursor: i === data.extraStops.length - 1 ? 'not-allowed' : 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >▼</button>
               </div>
-              <button onClick={() => setData(p => ({ ...p, extraStops: p.extraStops.filter((_, idx) => idx !== i), extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i) }))} style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: colors.textMuted, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              <button
+                onClick={() => setConfirmingDeleteStop(i)}
+                aria-label="刪除中途站"
+                title="刪除中途站"
+                style={{ background: '#FFF5F5', border: '1.5px solid #FFCDD2', borderRadius: 8, fontSize: 17, fontWeight: 700, color: '#D32F2F', cursor: 'pointer', padding: '6px 10px', minWidth: 40, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >✕</button>
               <button
                 onClick={() => {
                   const coord = data.extraStopsCoord[i];
@@ -709,10 +731,36 @@ export default function BookingDrawer({ onClose }: BookingDrawerProps) {
                   }
                 }}
                 title="微調位置"
+                aria-label="微調位置"
                 style={{ background: adjustingField === `stop:${i}` ? '#FFD700' : '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 14, color: adjustingField === `stop:${i}` ? '#fff' : colors.darkGrey, cursor: 'pointer', padding: '6px 10px', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >📍</button>
+              </>
+              )}
+              {isConfirmingDelete && (
+                <>
+                  <button
+                    onClick={() => {
+                      setData(p => ({
+                        ...p,
+                        extraStops: p.extraStops.filter((_, idx) => idx !== i),
+                        extraStopsCoord: p.extraStopsCoord.filter((_, idx) => idx !== i),
+                      }));
+                      setConfirmingDeleteStop(null);
+                      setAdjustingField(prev => prev === `stop:${i}` ? null : prev);
+                    }}
+                    aria-label="確認刪除"
+                    style={{ background: '#D32F2F', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, color: '#fff', cursor: 'pointer', padding: '6px 12px', minWidth: 64, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+                  >✓ 刪除</button>
+                  <button
+                    onClick={() => setConfirmingDeleteStop(null)}
+                    aria-label="取消刪除"
+                    style={{ background: '#fff', border: '1px solid #e4e7ec', borderRadius: 8, fontSize: 13, fontWeight: 600, color: colors.darkGrey, cursor: 'pointer', padding: '6px 12px', minWidth: 56, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >取消</button>
+                </>
+              )}
             </div>
-          ))}
+            );
+          })}
 
           {/* Dropoff */}
           <div style={{ display: 'flex', alignItems: 'center', gap: sp.sm, marginBottom: sp.xs }}>
