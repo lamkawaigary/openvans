@@ -571,6 +571,16 @@ export default function OrderV2Demo() {
                   to add their FIRST waypoint). Inside: header + list render only if waypoints > 0;
                   add-waypoint button renders whenever we still have capacity. */}
 
+              {/* Step 1 (6/23 12:56): Add-waypoint button ALWAYS visible if capacity — was previously
+                  trapped inside `(waypoints.length > 0 || endCoord)` block, hiding the entry point
+                  until user picked a destination. Now the button sits as a top-level affordance
+                  between pickup and dropoff. */}
+              {waypoints.length < MAX_WAYPOINTS && (
+                <div onClick={() => enterSearch('waypoint')} style={{ padding: '10px 12px', borderRadius: 10, border: `1.5px dashed ${colors.brand}`, textAlign: 'center', color: colors.brand, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 6, marginBottom: 6 }} aria-label="加入中途站">
+                  ＋ {waypoints.length > 0 ? '加入新中途站' : '加入中途站'}
+                </div>
+              )}
+
               {(waypoints.length > 0 || endCoord) && (
                 <div style={{ marginBottom: 0 }}>
                   {waypoints.length > 0 && (
@@ -643,11 +653,6 @@ export default function OrderV2Demo() {
                         style={{ flex: 1, padding: '8px', borderRadius: 8, border: `1px solid ${colors.border}`, background: draggingWaypointIdx === waypoints.length - 1 ? colors.background : colors.surface, color: draggingWaypointIdx === waypoints.length - 1 ? colors.textMuted : colors.textPrimary, fontSize: 13, fontWeight: 600, cursor: draggingWaypointIdx === waypoints.length - 1 ? 'not-allowed' : 'pointer' }}
                       >↓ 下移</button>
                       <button onClick={() => setDraggingWaypointIdx(null)} style={{ flex: 1, padding: '8px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textMuted, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>完成</button>
-                    </div>
-                  )}
-                  {waypoints.length < MAX_WAYPOINTS && (
-                    <div onClick={() => enterSearch('waypoint')} style={{ padding: '10px 12px', borderRadius: 10, border: `1.5px dashed ${colors.border}`, textAlign: 'center', color: colors.brand, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginTop: 6 }}>
-                      ＋ {waypoints.length > 0 ? '加入新中途站' : '加入中途站'}
                     </div>
                   )}
                 </div>
@@ -791,6 +796,9 @@ export default function OrderV2Demo() {
                 </div>
               );
             })()}
+            {/* Step 2 (6/23 12:56): Phase 3 ✓ debug panel gated to dev only. Vite inlines
+                `import.meta.env.DEV` as `false` at build time and dead-code-eliminates the branch. */}
+            {import.meta.env.DEV && (
             <div style={{ marginTop: 16, padding: 12, background: colors.background, borderRadius: 10, fontSize: 12, color: colors.textMuted, lineHeight: 1.6 }}>
               <strong style={{ color: colors.textSecondary }}>Phase 3 ✓:</strong>
               <ul style={{ margin: '4px 0 0 16px', padding: 0 }}>
@@ -800,6 +808,7 @@ export default function OrderV2Demo() {
                 <li>Loading state + error handling</li>
               </ul>
             </div>
+            )}
           </div>
         )}
 
