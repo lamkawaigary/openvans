@@ -25,3 +25,8 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Local + production env files (NEVER commit — secrets leak)
+.env
+.env.vercel
+.env.production
