@@ -37,3 +37,12 @@ dist-ssr
 .env.production
 .prod.env
 .test.env
+
+# Local + production env files (NEVER commit — secrets leak)
+.env
+.env.vercel
+.env.production
+
+# Vercel CLI auto-generated env files (contain OIDC tokens)
+.prod.env
+.test.env
