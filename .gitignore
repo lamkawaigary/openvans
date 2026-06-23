@@ -30,3 +30,10 @@ dist-ssr
 .env
 .env.vercel
 .env.production
+
+# Vercel CLI auto-generated env files (contain OIDC tokens)
+.env
+.env.vercel
+.env.production
+.prod.env
+.test.env
