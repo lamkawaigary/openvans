@@ -336,10 +336,13 @@ export default function OrderV2Demo() {
     };
   }, [query, sheetMode]);
 
-  // Fit bounds when any waypoint / end / start changes.
+  // Map view when any waypoint / end / start changes.
   // Triggered by waypoints length (not by reference) to avoid jitter on every render.
-  // Fix C: padding 80→220 to keep route/pins visible above the bottom sheet
+  // Fix C: padding 220 to keep route/pins visible above the bottom sheet
   // (sheet idle=half 62% vh, dragging=peek 240px) without being clipped.
+  // 6/23 (Gary): Cap maxZoom at HK_ZOOM so adding a stop does NOT zoom in
+  // past the HK overview. User feedback: every add-stop forced manual zoom-out.
+  // `maxZoom` is a Google Maps fitBounds option (Padding object form).
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -348,10 +351,12 @@ export default function OrderV2Demo() {
     if (points.length >= 2) {
       const bounds = new google.maps.LatLngBounds();
       points.forEach(p => bounds.extend(p));
-      map.fitBounds(bounds, 220);
+      // `maxZoom` is supported by the Google Maps JS API but missing from
+      // @react-google-maps/api's Padding TypeScript type — cast through `as any`.
+      (map.fitBounds as any)(bounds, { top: 220, right: 220, bottom: 220, left: 220, maxZoom: HK_ZOOM });
     } else {
       map.setCenter(startCoord);
-      map.setZoom(15);
+      map.setZoom(HK_ZOOM);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endCoord, startCoord, waypoints.length, waypoints.map(w => `${w.coord.lat},${w.coord.lng}`).join('|')]);
