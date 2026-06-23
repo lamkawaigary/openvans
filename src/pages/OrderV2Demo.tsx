@@ -115,11 +115,20 @@ export default function OrderV2Demo() {
     if (waypoints.length >= MAX_WAYPOINTS) return;
     setWaypoints(prev => [...prev, { coord, label }]);
   };
+  // Inline confirm for waypoint delete — 防止誤刪中途站 (6/23)
+  const [confirmingDeleteWaypoint, setConfirmingDeleteWaypoint] = useState<number | null>(null);
   const removeWaypoint = (i: number) => {
     setWaypoints(prev => prev.filter((_, idx) => idx !== i));
     if (draggingWaypointIdx === i) setDraggingWaypointIdx(null);
     if (renamingIdx === i) { setRenamingIdx(null); setRenameValue(''); }
+    setConfirmingDeleteWaypoint(null);
   };
+  // Auto-clear stale confirm if waypoint list shrinks past the index
+  useEffect(() => {
+    if (confirmingDeleteWaypoint !== null && confirmingDeleteWaypoint >= waypoints.length) {
+      setConfirmingDeleteWaypoint(null);
+    }
+  }, [waypoints.length, confirmingDeleteWaypoint]);
 
   // Phase 7.2: reorder waypoints via long-press drag handle
   const handleDragHandleMouseDown = (idx: number) => {
@@ -610,9 +619,17 @@ export default function OrderV2Demo() {
                           {w.customName && <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.label}</div>}
                         </div>
                       )}
-                      <div onClick={() => removeWaypoint(i)} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: colors.textMuted, fontSize: 18, flexShrink: 0 }} title="刪除中途站">×</div>
+                      <div onClick={() => setConfirmingDeleteWaypoint(i)} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: confirmingDeleteWaypoint === i ? '#D32F2F' : colors.textMuted, fontSize: 18, flexShrink: 0, background: confirmingDeleteWaypoint === i ? '#FFEBEE' : 'transparent', borderRadius: 6 }} title="刪除中途站" aria-label="刪除中途站">×</div>
                     </div>
                   ))}
+                  {/* Inline confirm banner for waypoint delete — shows when confirmingDeleteWaypoint is set (6/23) */}
+                  {confirmingDeleteWaypoint !== null && waypoints[confirmingDeleteWaypoint] && (
+                    <div style={{ display: 'flex', alignItems: 'center', padding: '8px 12px', background: '#FFEBEE', border: '1.5px solid #FF5252', borderRadius: 12, marginBottom: 6, minHeight: 48, gap: 8 }}>
+                      <span style={{ fontSize: 12, color: '#D32F2F', fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>確定刪除「{waypoints[confirmingDeleteWaypoint].customName || waypoints[confirmingDeleteWaypoint].label}」？</span>
+                      <button onClick={() => removeWaypoint(confirmingDeleteWaypoint)} aria-label="確認刪除中途站" style={{ padding: '6px 12px', borderRadius: 8, border: 'none', background: '#D32F2F', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', minWidth: 56 }}>✓ 刪除</button>
+                      <button onClick={() => setConfirmingDeleteWaypoint(null)} aria-label="取消刪除中途站" style={{ padding: '6px 12px', borderRadius: 8, border: `1px solid ${colors.border}`, background: colors.surface, color: colors.textPrimary, fontSize: 13, fontWeight: 600, cursor: 'pointer', minWidth: 56 }}>取消</button>
+                    </div>
+                  )}
                   {waypoints.length > 0 && draggingWaypointIdx !== null && (
                     <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                       <button
