@@ -37,8 +37,11 @@ const DEFAULT_CENTER = { lat: 22.32, lng: 114.17 };
 // Macau + Zhuhai. Used when the renter picks 跨境車.
 const CROSS_BORDER_CENTER = { lat: 22.5, lng: 113.8 };
 // Zoom levels: 10 for HK overview, 8 for PRD overview.
+// USER_ZOOM (Gary 6/24 17:23): zoom level when we have a single start point —
+// shows the user's neighbourhood (~2-5 km radius), not whole HK and not street level.
 const HK_ZOOM = 10;
 const PRD_ZOOM = 8;
+const USER_ZOOM = 13;
 
 const containerStyle: React.CSSProperties = { width: '100%', height: '100%' };
 const mapOptions: google.maps.MapOptions = {
@@ -371,8 +374,12 @@ export default function OrderV2Demo() {
       // @react-google-maps/api's Padding TypeScript type — cast through `as any`.
       (map.fitBounds as any)(bounds, { top: 220, right: 220, bottom: 220, left: 220, maxZoom: HK_ZOOM });
     } else {
+      // Single point (or no points): centre on the start if known, else fall back
+      // to DEFAULT_CENTER. Use AREA zoom (USER_ZOOM = 13, ~2-5 km radius) when the
+      // start is set so the user can see their neighbourhood, not the whole of HK
+      // (HK_ZOOM=10, 10 km) and not street level (zoom 17+).
       map.setCenter(startCoord ?? DEFAULT_CENTER);
-      map.setZoom(HK_ZOOM);
+      map.setZoom(startCoord ? USER_ZOOM : HK_ZOOM);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endCoord, startCoord, waypoints.length, waypoints.map(w => `${w.coord.lat},${w.coord.lng}`).join('|')]);
