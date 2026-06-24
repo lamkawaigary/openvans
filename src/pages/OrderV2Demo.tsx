@@ -31,21 +31,21 @@ const CROSS_BORDER_CHECKPOINTS = [
 // Hong Kong overview center (between Kowloon and Tsuen Wan) — shows the
 // entire HK territory on first load instead of zooming into Central.
 // Fix map/UX #5 (Gary 6/24 18:45): Default view shows only Hong Kong (no Shenzhen
-// bleed-through). DEFAULT_CENTER (22.30, 114.17) is roughly Tsim Sha Tsui; HK_ZOOM
-// is reduced to 11 so the panel shows a tighter HK-only viewport instead of the
-// entire PRD. The bottom sheet still occludes the lower half of the map, so the
-// visible top half ends up showing central HK (九龍中部 / 港島).
-const DEFAULT_CENTER = { lat: 22.30, lng: 114.17 };
+// bleed-through). DEFAULT_CENTER (22.20, 114.17) is well south of HK centre so that
+// at HK_ZOOM=10 the panel's visible top half (above the bottom sheet) tops out
+// around lat 22.375 — comfortably below Shenzhen (lat 22.5+). The user sees
+// central HK (九龍中部 / 港島) and the southern HK waters.
+const DEFAULT_CENTER = { lat: 22.20, lng: 114.17 };
 // DEFAULT_START removed (Gary 6/24 16:35): no more hardcoded fake start location.
 // startCoord stays null until geolocation resolves or the user explicitly picks.
 // Pearl River Delta center for cross-border trips — covers HK + Shenzhen +
 // Macau + Zhuhai. Used when the renter picks 跨境車.
 const CROSS_BORDER_CENTER = { lat: 22.5, lng: 113.8 };
-// Zoom levels: 11 for HK overview (HK only, no Shenzhen bleed-through),
+// Zoom levels: 10 for HK overview (HK only, no Shenzhen bleed-through),
 // 8 for PRD overview when the renter picks 跨境車.
 // USER_ZOOM (Gary 6/24 17:23): zoom level when we have a single start point —
 // shows the user's neighbourhood (~2-5 km radius), not whole HK and not street level.
-const HK_ZOOM = 11;
+const HK_ZOOM = 10;
 const PRD_ZOOM = 8;
 const USER_ZOOM = 13;
 
