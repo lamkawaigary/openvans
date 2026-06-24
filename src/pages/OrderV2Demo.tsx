@@ -31,7 +31,8 @@ const CROSS_BORDER_CHECKPOINTS = [
 // Hong Kong overview center (between Kowloon and Tsuen Wan) — shows the
 // entire HK territory on first load instead of zooming into Central.
 const DEFAULT_CENTER = { lat: 22.32, lng: 114.17 };
-const DEFAULT_START = { lat: 22.2855, lng: 114.1574 };
+// DEFAULT_START removed (Gary 6/24 16:35): no more hardcoded fake start location.
+// startCoord stays null until geolocation resolves or the user explicitly picks.
 // Pearl River Delta center for cross-border trips — covers HK + Shenzhen +
 // Macau + Zhuhai. Used when the renter picks 跨境車.
 const CROSS_BORDER_CENTER = { lat: 22.5, lng: 113.8 };
@@ -55,8 +56,12 @@ type SheetMode = 'idle' | 'searching-start' | 'searching-end' | 'searching-waypo
 
 export default function OrderV2Demo() {
   const [sheetMode, setSheetMode] = useState<SheetMode>('idle');
-  const [startCoord, setStartCoord] = useState<Coord>(DEFAULT_START);
-  const [startLabel, setStartLabel] = useState('中環國際金融中心商場');
+  // Fix Map/UX #1 (Gary 6/24 16:35): Don't hardcode a fake start location. Initial state
+  // shows "未設定起點" until geolocation resolves (or user picks). startCoord stays null
+  // until something is set, so the map/UI can show an explicit prompt instead of pretending
+  // the user is somewhere they aren't.
+  const [startCoord, setStartCoord] = useState<Coord | null>(null);
+  const [startLabel, setStartLabel] = useState<string | null>(null);
   const [endCoord, setEndCoord] = useState<Coord | null>(null);
   const [endLabel, setEndLabel] = useState<string | null>(null);
   const [pendingCoord, setPendingCoord] = useState<Coord | null>(null);
@@ -90,10 +95,15 @@ export default function OrderV2Demo() {
   const sheetModeRef = useRef<SheetMode>('idle');
   useEffect(() => { sheetModeRef.current = sheetMode; }, [sheetMode]);
 
-  // Fix G: on mount, request user's geolocation to seed startCoord/startLabel.
-  // Fallback to DEFAULT_START (中環 IFC) if denied/failed.
+  // Fix Map/UX #2 (Gary 6/24 16:35): On mount, request user's geolocation. If granted,
+  // seed startCoord/startLabel with the real location. If denied/failed/timeout, leave
+  // startCoord=null and startLabel='未設定起點' so the UI doesn't pretend the user is
+  // somewhere they're not. User must explicitly tap the start area to pick a location.
   useEffect(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      console.warn('[OrderV2Demo] navigator.geolocation not available, start remains unset');
+      return;
+    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coord = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -103,8 +113,8 @@ export default function OrderV2Demo() {
           .catch(() => setStartLabel('當前位置'));
       },
       (err) => {
-        console.warn('[OrderV2Demo] Geolocation denied/failed, using default 中環 IFC:', err.message);
-        // Keep DEFAULT_START
+        console.warn('[OrderV2Demo] Geolocation denied/failed (user must pick start):', err.message);
+        // Keep startCoord=null, startLabel='未設定起點' so UI prompts user to pick.
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     );
@@ -164,7 +174,7 @@ export default function OrderV2Demo() {
 
   // Haversine distance in km (includes waypoints)
   const distanceKm = useMemo(() => {
-    if (!endCoord) return 0;
+    if (!endCoord || !startCoord) return 0;
     const R = 6371;
     const segs: Coord[] = [startCoord, ...waypoints.map(w => w.coord), endCoord];
     let total = 0;
@@ -180,7 +190,7 @@ export default function OrderV2Demo() {
 
   // Polyline path A → W1 → W2 → B
   const routePath = useMemo(() => {
-    if (!endCoord) return [];
+    if (!endCoord || !startCoord) return [];
     return [startCoord, ...waypoints.map(w => w.coord), endCoord];
   }, [endCoord, startCoord, waypoints]);
 
@@ -208,8 +218,10 @@ export default function OrderV2Demo() {
     // Fall back to context user only if Firebase auth says no current user
     // (e.g., during auth state init).
     const liveUser: any = getAuth().currentUser || user || null;
-    if (!endCoord || !endLabel || !liveUser) {
+    if (!endCoord || !endLabel || !startCoord || !startLabel || !liveUser) {
       console.warn('[handleSubmit] guard failed', {
+        hasStartCoord: !!startCoord,
+        hasStartLabel: !!startLabel,
         hasEndCoord: !!endCoord,
         hasEndLabel: !!endLabel,
         hasUser: !!user,
@@ -346,16 +358,20 @@ export default function OrderV2Demo() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const points: Coord[] = [startCoord, ...waypoints.map(w => w.coord)];
-    if (endCoord) points.push(endCoord);
-    if (points.length >= 2) {
+    // Skip until user has set both endpoints (or at least one waypoint/end).
+    // Use DEFAULT_CENTER when start isn't set yet so the map still has a sensible view.
+    const allPoints: Coord[] = startCoord
+      ? [startCoord, ...waypoints.map(w => w.coord)]
+      : [...waypoints.map(w => w.coord)];
+    if (endCoord) allPoints.push(endCoord);
+    if (allPoints.length >= 2) {
       const bounds = new google.maps.LatLngBounds();
-      points.forEach(p => bounds.extend(p));
+      allPoints.forEach(p => bounds.extend(p));
       // `maxZoom` is supported by the Google Maps JS API but missing from
       // @react-google-maps/api's Padding TypeScript type — cast through `as any`.
       (map.fitBounds as any)(bounds, { top: 220, right: 220, bottom: 220, left: 220, maxZoom: HK_ZOOM });
     } else {
-      map.setCenter(startCoord);
+      map.setCenter(startCoord ?? DEFAULT_CENTER);
       map.setZoom(HK_ZOOM);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -435,10 +451,21 @@ export default function OrderV2Demo() {
 
   // Drag-end listener — also routes via applyMapPick so dragging the map in a search
   // context updates the correct station (Fix G). Uses visible center (Fix H).
+  //
+  // Fix Map/UX #3 (Gary 6/24 16:35): dragend MUST NOT fire applyMapPick in idle/dragging
+  // mode. Previously, every map pan in idle mode would auto-set pendingCoord + sheetMode=
+  // 'dragging', and a subsequent ✓ 確認 tap would silently overwrite the user's 終點.
+  // Now dragend only acts when the user has explicitly entered a search mode (i.e. they
+  // tapped a station to adjust it). Otherwise, map drag is purely navigation.
   const handleMapLoad = (map: google.maps.Map) => {
     mapRef.current = map;
     map.addListener('dragend', () => {
-      const visibleCenter = computeVisibleCenter(map, sheetModeRef.current);
+      const mode = sheetModeRef.current;
+      // Only apply pick in active search modes; ignore pan in idle/dragging.
+      if (mode !== 'searching-start' && mode !== 'searching-end' && mode !== 'searching-waypoint') {
+        return;
+      }
+      const visibleCenter = computeVisibleCenter(map, mode);
       if (!visibleCenter) return;
       applyMapPick({ lat: visibleCenter.lat(), lng: visibleCenter.lng() });
     });
@@ -487,11 +514,11 @@ export default function OrderV2Demo() {
           onClick={handleMapClick}
           options={mapOptions}
         >
-          <Marker position={startCoord} zIndex={10} icon={{
+          {startCoord && <Marker position={startCoord} zIndex={10} icon={{
             path: 'M 0,-10 A 10,10 0 1,0 0,10 L 0,4 L -2,4 L -2,-6 Z',
             fillColor: colors.brand, fillOpacity: 1,
             strokeColor: '#fff', strokeWeight: 3, scale: 1.5,
-          }} />
+          }} />}
           {endCoord && (
             <Marker position={endCoord} zIndex={11} icon={{
               path: 'M 0,-10 A 10,10 0 1,0 0,10 L 0,4 L -2,4 L -2,-6 Z',
@@ -567,8 +594,10 @@ export default function OrderV2Demo() {
             <div style={{ fontSize: 11, color: colors.textMuted, textAlign: 'center', marginBottom: 12, marginTop: -8 }}>{SERVICE_LABELS[serviceType].desc}</div>
             <div style={{ background: colors.background, borderRadius: 16, padding: 10, marginBottom: 12, border: `1.5px solid ${colors.border}`, position: 'relative' }}>
               <div onClick={() => enterSearch('start')} style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 12, minHeight: 48, cursor: 'pointer', borderRadius: 10 }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: colors.brand, flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 15, fontWeight: 500 }}>{startLabel}</div>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: startCoord ? colors.brand : colors.textMuted, flexShrink: 0 }} />
+                <div style={{ flex: 1, fontSize: 15, fontWeight: 500, color: startLabel ? colors.textPrimary : colors.textMuted }}>
+                  {startLabel || '撳下設定起點'}
+                </div>
               </div>
 
               {/* Phase 7.2 + 7.3: Waypoint list with reorder handle + rename — MOVED between pickup and dropoff (Fix A) */}
@@ -787,8 +816,8 @@ export default function OrderV2Demo() {
 
             <div style={{ position: 'sticky', bottom: 0, background: `linear-gradient(to top, ${colors.surface} 80%, transparent)`, paddingTop: 12, paddingBottom: 8, marginTop: 12, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' }}>
               {/* Sticky submit bar shadow + brand surface tint */}
-              <button onClick={handleSubmit} disabled={!endCoord || submitting} style={{ width: '100%', background: endCoord && !submitting ? colors.brand : colors.border, color: endCoord && !submitting ? colors.textPrimary : colors.textMuted, border: 'none', borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, cursor: endCoord && !submitting ? 'pointer' : 'not-allowed', minHeight: 52, boxShadow: endCoord && !submitting ? '0 4px 12px rgba(195, 234, 79, 0.45)' : 'none', transition: 'all 0.15s' }}>
-                {submitting ? '提交中...' : `確認落單 $${estimatedPrice} →`}
+              <button onClick={handleSubmit} disabled={!endCoord || !startCoord || submitting} style={{ width: '100%', background: endCoord && startCoord && !submitting ? colors.brand : colors.border, color: endCoord && startCoord && !submitting ? colors.textPrimary : colors.textMuted, border: 'none', borderRadius: 14, padding: 16, fontSize: 16, fontWeight: 700, cursor: endCoord && startCoord && !submitting ? 'pointer' : 'not-allowed', minHeight: 52, boxShadow: endCoord && startCoord && !submitting ? '0 4px 12px rgba(195, 234, 79, 0.45)' : 'none', transition: 'all 0.15s' }}>
+                {submitting ? '提交中...' : (!startCoord ? '請先設定起點 →' : !endCoord ? '請設定終點 →' : `確認落單 $${estimatedPrice} →`)}
               </button>
             </div>
             {/* Phase 7.4: Show surcharge inline if cross-border */}
@@ -835,7 +864,24 @@ export default function OrderV2Demo() {
               <div style={{ fontSize: 11, fontWeight: 700, color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, padding: '16px 8px 6px' }}>提示</div>
             )}
             {!query.trim() && (
-              <div style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 12, cursor: 'pointer', borderRadius: 12 }} onClick={() => handleMapClick({ latLng: new google.maps.LatLng(startCoord.lat, startCoord.lng) } as google.maps.MapMouseEvent)}>
+              <div style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 12, cursor: 'pointer', borderRadius: 12 }} onClick={() => {
+                // Fix Map/UX #4 (Gary 6/24 16:35): "使用地圖揀選" now picks the map's
+                // CURRENT visible center (not the previously-saved start coord). The
+                // previous behavior re-set the same coord/label and looked like a
+                // no-op, which confused the user. The user is expected to drag the map
+                // first to position the desired point under the visible center.
+                const map = mapRef.current;
+                let pickLat: number, pickLng: number;
+                if (map) {
+                  const c = computeVisibleCenter(map, sheetMode);
+                  if (c) { pickLat = c.lat(); pickLng = c.lng(); }
+                  else { pickLat = DEFAULT_CENTER.lat; pickLng = DEFAULT_CENTER.lng; }
+                } else {
+                  pickLat = startCoord?.lat ?? DEFAULT_CENTER.lat;
+                  pickLng = startCoord?.lng ?? DEFAULT_CENTER.lng;
+                }
+                handleMapClick({ latLng: new google.maps.LatLng(pickLat, pickLng) } as google.maps.MapMouseEvent);
+              }}>
                 <div style={{ width: 40, height: 40, background: colors.background, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>📍</div>
                 <div style={{ flex: 1, fontSize: 15, fontWeight: 600 }}>使用地圖揀選</div>
               </div>
