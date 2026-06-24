@@ -30,16 +30,22 @@ const CROSS_BORDER_CHECKPOINTS = [
 
 // Hong Kong overview center (between Kowloon and Tsuen Wan) — shows the
 // entire HK territory on first load instead of zooming into Central.
-const DEFAULT_CENTER = { lat: 22.32, lng: 114.17 };
+// Fix map/UX #5 (Gary 6/24 18:45): Default view shows only Hong Kong (no Shenzhen
+// bleed-through). DEFAULT_CENTER (22.30, 114.17) is roughly Tsim Sha Tsui; HK_ZOOM
+// is reduced to 11 so the panel shows a tighter HK-only viewport instead of the
+// entire PRD. The bottom sheet still occludes the lower half of the map, so the
+// visible top half ends up showing central HK (九龍中部 / 港島).
+const DEFAULT_CENTER = { lat: 22.30, lng: 114.17 };
 // DEFAULT_START removed (Gary 6/24 16:35): no more hardcoded fake start location.
 // startCoord stays null until geolocation resolves or the user explicitly picks.
 // Pearl River Delta center for cross-border trips — covers HK + Shenzhen +
 // Macau + Zhuhai. Used when the renter picks 跨境車.
 const CROSS_BORDER_CENTER = { lat: 22.5, lng: 113.8 };
-// Zoom levels: 10 for HK overview, 8 for PRD overview.
+// Zoom levels: 11 for HK overview (HK only, no Shenzhen bleed-through),
+// 8 for PRD overview when the renter picks 跨境車.
 // USER_ZOOM (Gary 6/24 17:23): zoom level when we have a single start point —
 // shows the user's neighbourhood (~2-5 km radius), not whole HK and not street level.
-const HK_ZOOM = 10;
+const HK_ZOOM = 11;
 const PRD_ZOOM = 8;
 const USER_ZOOM = 13;
 
@@ -98,15 +104,21 @@ export default function OrderV2Demo() {
   const sheetModeRef = useRef<SheetMode>('idle');
   useEffect(() => { sheetModeRef.current = sheetMode; }, [sheetMode]);
 
-  // Fix Map/UX #2 (Gary 6/24 16:35): On mount, request user's geolocation. If granted,
-  // seed startCoord/startLabel with the real location. If denied/failed/timeout, leave
-  // startCoord=null and startLabel='未設定起點' so the UI doesn't pretend the user is
-  // somewhere they're not. User must explicitly tap the start area to pick a location.
+  // Fix Map/UX #6 (Gary 6/24 18:45): On mount, request the user's geolocation. If
+  // granted, seed startCoord/startLabel with the real location and pan the map there
+  // (handled by the map useEffect when startCoord becomes non-null). If denied, failed,
+  // or timed out, leave startCoord=null and the UI explicitly prompts the user to
+  // pick a start location — never pretend the user is somewhere they're not.
+  // Also expose `geoStatus` so the user can see why their location isn't set
+  // (e.g. 「已拒絕定位權限」 vs 「定位逾時」).
+  const [geoStatus, setGeoStatus] = useState<'idle' | 'requesting' | 'denied' | 'timeout' | 'unavailable'>('idle');
   useEffect(() => {
     if (!navigator.geolocation) {
       console.warn('[OrderV2Demo] navigator.geolocation not available, start remains unset');
+      setGeoStatus('unavailable');
       return;
     }
+    setGeoStatus('requesting');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const coord = { lat: pos.coords.latitude, lng: pos.coords.longitude };
@@ -114,9 +126,13 @@ export default function OrderV2Demo() {
         reverseGeocode(coord.lat, coord.lng)
           .then(addr => setStartLabel(addr))
           .catch(() => setStartLabel('當前位置'));
+        setGeoStatus('idle');
       },
       (err) => {
-        console.warn('[OrderV2Demo] Geolocation denied/failed (user must pick start):', err.message);
+        console.warn('[OrderV2Demo] Geolocation denied/failed (user must pick start):', err.message, 'code=', err.code);
+        if (err.code === 1 /* PERMISSION_DENIED */) setGeoStatus('denied');
+        else if (err.code === 3 /* TIMEOUT */) setGeoStatus('timeout');
+        else setGeoStatus('unavailable');
         // Keep startCoord=null, startLabel='未設定起點' so UI prompts user to pick.
       },
       { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
@@ -602,8 +618,22 @@ export default function OrderV2Demo() {
             <div style={{ background: colors.background, borderRadius: 16, padding: 10, marginBottom: 12, border: `1.5px solid ${colors.border}`, position: 'relative' }}>
               <div onClick={() => enterSearch('start')} style={{ display: 'flex', alignItems: 'center', padding: 12, gap: 12, minHeight: 48, cursor: 'pointer', borderRadius: 10 }}>
                 <div style={{ width: 10, height: 10, borderRadius: '50%', background: startCoord ? colors.brand : colors.textMuted, flexShrink: 0 }} />
-                <div style={{ flex: 1, fontSize: 15, fontWeight: 500, color: startLabel ? colors.textPrimary : colors.textMuted }}>
-                  {startLabel || '撳下設定起點'}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: startLabel ? colors.textPrimary : colors.textMuted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {startLabel || '撳下設定起點'}
+                  </div>
+                  {!startCoord && geoStatus === 'requesting' && (
+                    <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>⏳ 自動偵測中…</div>
+                  )}
+                  {!startCoord && geoStatus === 'denied' && (
+                    <div style={{ fontSize: 11, color: '#D32F2F', marginTop: 2 }}>已拒絕定位權限，撳下設定起點</div>
+                  )}
+                  {!startCoord && geoStatus === 'timeout' && (
+                    <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>定位逾時，撳下設定起點</div>
+                  )}
+                  {!startCoord && geoStatus === 'unavailable' && (
+                    <div style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>瀏覽器不支援定位，撳下設定起點</div>
+                  )}
                 </div>
               </div>
 
