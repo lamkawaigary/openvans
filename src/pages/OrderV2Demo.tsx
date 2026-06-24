@@ -389,13 +389,20 @@ export default function OrderV2Demo() {
       // `maxZoom` is supported by the Google Maps JS API but missing from
       // @react-google-maps/api's Padding TypeScript type — cast through `as any`.
       (map.fitBounds as any)(bounds, { top: 220, right: 220, bottom: 220, left: 220, maxZoom: HK_ZOOM });
+    } else if (startCoord) {
+      // Single point (just the start): centre on it and zoom to neighbourhood.
+      map.setCenter(startCoord);
+      map.setZoom(USER_ZOOM);
     } else {
-      // Single point (or no points): centre on the start if known, else fall back
-      // to DEFAULT_CENTER. Use AREA zoom (USER_ZOOM = 13, ~2-5 km radius) when the
-      // start is set so the user can see their neighbourhood, not the whole of HK
-      // (HK_ZOOM=10, 10 km) and not street level (zoom 17+).
-      map.setCenter(startCoord ?? DEFAULT_CENTER);
-      map.setZoom(startCoord ? USER_ZOOM : HK_ZOOM);
+      // 0 points: fit the HK bounding box with a large bottom padding so the
+      // visible top half of the map (above the bottom sheet) shows central HK
+      // and the bottom half — occluded by the sheet — covers HK's south waters.
+      // This avoids Shenzhen/PRD bleed-through at the top of the panel.
+      const hkBounds = new google.maps.LatLngBounds(
+        { lat: 22.13, lng: 113.83 },
+        { lat: 22.55, lng: 114.41 }
+      );
+      (map.fitBounds as any)(hkBounds, { top: 50, right: 50, bottom: 360, left: 50, maxZoom: 11 });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endCoord, startCoord, waypoints.length, waypoints.map(w => `${w.coord.lat},${w.coord.lng}`).join('|')]);
