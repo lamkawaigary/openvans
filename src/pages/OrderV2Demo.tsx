@@ -31,11 +31,12 @@ const CROSS_BORDER_CHECKPOINTS = [
 // Hong Kong overview center (between Kowloon and Tsuen Wan) — shows the
 // entire HK territory on first load instead of zooming into Central.
 // Fix map/UX #5 (Gary 6/24 18:45): Default view shows only Hong Kong (no Shenzhen
-// bleed-through). DEFAULT_CENTER (22.20, 114.17) is well south of HK centre so that
-// at HK_ZOOM=10 the panel's visible top half (above the bottom sheet) tops out
-// around lat 22.375 — comfortably below Shenzhen (lat 22.5+). The user sees
-// central HK (九龍中部 / 港島) and the southern HK waters.
-const DEFAULT_CENTER = { lat: 22.20, lng: 114.17 };
+// bleed-through). DEFAULT_CENTER (22.10, 114.17) at HK_ZOOM=11 gives a panel
+// viewport of (21.79, 22.41) — the visible top half (above the bottom sheet)
+// shows central HK (九龍 + 港島) and tops out at lat 22.41, comfortably below
+// Shenzhen (lat 22.5+). The user sees the whole of central HK and the south
+// waters.
+const DEFAULT_CENTER = { lat: 22.10, lng: 114.17 };
 // DEFAULT_START removed (Gary 6/24 16:35): no more hardcoded fake start location.
 // startCoord stays null until geolocation resolves or the user explicitly picks.
 // Pearl River Delta center for cross-border trips — covers HK + Shenzhen +
