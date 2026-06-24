@@ -394,15 +394,13 @@ export default function OrderV2Demo() {
       map.setCenter(startCoord);
       map.setZoom(USER_ZOOM);
     } else {
-      // 0 points: fit the HK bounding box with a large bottom padding so the
-      // visible top half of the map (above the bottom sheet) shows central HK
-      // and the bottom half — occluded by the sheet — covers HK's south waters.
-      // This avoids Shenzhen/PRD bleed-through at the top of the panel.
-      const hkBounds = new google.maps.LatLngBounds(
-        { lat: 22.13, lng: 113.83 },
-        { lat: 22.55, lng: 114.41 }
-      );
-      (map.fitBounds as any)(hkBounds, { top: 50, right: 50, bottom: 360, left: 50, maxZoom: 11 });
+      // 0 points (no start yet): centre on DEFAULT_CENTER at HK_ZOOM.
+      // The bottom sheet occludes the lower ~50% of the map panel, so the
+      // user only sees the upper half — which is the setCenter lat ± ~half.
+      // DEFAULT_CENTER (22.30) + zoom 10 puts the visible top at lat 22.39,
+      // comfortably below Shenzhen (22.5+), so the user never sees PRD.
+      map.setCenter(DEFAULT_CENTER);
+      map.setZoom(HK_ZOOM);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endCoord, startCoord, waypoints.length, waypoints.map(w => `${w.coord.lat},${w.coord.lng}`).join('|')]);
